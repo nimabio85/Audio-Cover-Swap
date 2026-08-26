@@ -87,6 +87,8 @@
     nonAudioSelectedCount: $('#nonAudioSelectedCount'),
     btnStartConvert: $('#btnStartConvert'),
     headerStatus: $('#headerStatus'),
+    updateNotification: $('#updateNotification'),
+    updateNotificationText: $('#updateNotificationText'),
     progressModal: $('#progressModal'),
     modalTitle: $('#modalTitle'),
     progressBar: $('#progressBar'),
@@ -134,6 +136,52 @@
     const c = colors[color] || colors.emerald;
     dot.style.background = c.bg;
     dot.style.boxShadow = `0 0 8px ${c.shadow}`;
+  }
+
+  function renderUpdateStatus(status = { state: 'idle' }) {
+    const button = els.updateNotification;
+    button.classList.remove('ready', 'error');
+    button.disabled = false;
+    button.dataset.state = status.state;
+
+    if (status.state === 'idle' || status.state === 'checking') {
+      button.hidden = true;
+      return;
+    }
+
+    button.hidden = false;
+    if (status.state === 'available') {
+      els.updateNotificationText.textContent = `Downloading CoverSwap ${status.version}...`;
+      button.disabled = true;
+    } else if (status.state === 'downloading') {
+      els.updateNotificationText.textContent = `Downloading update ${status.percent || 0}%`;
+      button.disabled = true;
+    } else if (status.state === 'downloaded') {
+      els.updateNotificationText.textContent = `Version ${status.version} ready — restart`;
+      button.classList.add('ready');
+      button.title = 'Restart CoverSwap and install the downloaded update';
+    } else if (status.state === 'portable-available') {
+      els.updateNotificationText.textContent = `Version ${status.version} available`;
+      button.title = 'Open the GitHub download page';
+    } else {
+      els.updateNotificationText.textContent = 'Update failed — retry';
+      button.classList.add('error');
+      button.title = status.message || 'Retry the update check';
+    }
+  }
+
+  async function setupUpdateNotifications() {
+    const updates = window.coverSwapUpdates;
+    if (!updates) return;
+
+    renderUpdateStatus(await updates.getStatus());
+    updates.onStatus(renderUpdateStatus);
+    els.updateNotification.addEventListener('click', () => {
+      const action = els.updateNotification.dataset.state;
+      if (action === 'downloaded') updates.install();
+      else if (action === 'portable-available') updates.openRelease();
+      else if (action === 'error') updates.check();
+    });
   }
 
   // --- API Helpers ---
@@ -1042,6 +1090,7 @@
 
     setupImageDropZone();
     setupMetadataSection();
+    setupUpdateNotifications().catch(() => {});
   }
 
   // Boot

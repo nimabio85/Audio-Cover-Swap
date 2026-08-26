@@ -1,6 +1,7 @@
-const { app, BrowserWindow, dialog, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, shell } = require('electron');
 const { autoUpdater } = require('electron-updater');
 const fs = require('node:fs');
+const path = require('node:path');
 const semver = require('semver');
 const { startServer, verifyAudioFile } = require('./server');
 
@@ -10,12 +11,14 @@ const UPDATE_INTERVAL_MS = 4 * 60 * 60 * 1000;
 
 let mainWindow = null;
 let localServer = null;
+let updateStatus = { state: 'idle' };
+let runUpdateCheck = null;
 
-function showAppDialog(options) {
+function publishUpdateStatus(status) {
+  updateStatus = { ...updateStatus, ...status };
   if (mainWindow && !mainWindow.isDestroyed()) {
-    return dialog.showMessageBox(mainWindow, options);
+    mainWindow.webContents.send('updates:status', updateStatus);
   }
-  return dialog.showMessageBox(options);
 }
 
 async function checkPortableUpdate() {
@@ -24,83 +27,95 @@ async function checkPortableUpdate() {
       headers: { 'User-Agent': `CoverSwap/${app.getVersion()}` },
       signal: AbortSignal.timeout(15000),
     });
-    if (!response.ok) return;
+    if (!response.ok) throw new Error(`GitHub returned ${response.status}`);
 
     const release = await response.json();
     const latestVersion = semver.coerce(release.tag_name || release.name);
     const currentVersion = semver.coerce(app.getVersion());
-    if (!latestVersion || !currentVersion || !semver.gt(latestVersion, currentVersion)) return;
+    if (!latestVersion || !currentVersion || !semver.gt(latestVersion, currentVersion)) {
+      publishUpdateStatus({ state: 'idle' });
+      return;
+    }
 
-    const result = await showAppDialog({
-      type: 'info',
-      title: 'CoverSwap update available',
-      message: `CoverSwap ${latestVersion.version} is available`,
-      detail: 'Portable editions cannot replace themselves while running. Open the release page to download the new portable version.',
-      buttons: ['Open download page', 'Later'],
-      defaultId: 0,
-      cancelId: 1,
+    publishUpdateStatus({
+      state: 'portable-available',
+      version: latestVersion.version,
+      releaseUrl: release.html_url || LATEST_RELEASE_PAGE,
     });
-    if (result.response === 0) await shell.openExternal(release.html_url || LATEST_RELEASE_PAGE);
   } catch (error) {
     console.warn(`Portable update check failed: ${error.message}`);
+    publishUpdateStatus({ state: 'error', message: error.message, portable: true });
   }
 }
 
 function configureInstalledUpdater() {
-  autoUpdater.autoDownload = false;
+  autoUpdater.autoDownload = true;
   autoUpdater.autoInstallOnAppQuit = true;
   autoUpdater.allowPrerelease = false;
+  autoUpdater.disableDifferentialDownload = false;
   autoUpdater.logger = console;
 
-  autoUpdater.on('update-available', async (info) => {
-    const result = await showAppDialog({
-      type: 'info',
-      title: 'CoverSwap update available',
-      message: `CoverSwap ${info.version} is available`,
-      detail: 'Would you like to download it now? Your audio files will not be touched during the app update.',
-      buttons: ['Download update', 'Later'],
-      defaultId: 0,
-      cancelId: 1,
-    });
-    if (result.response === 0) autoUpdater.downloadUpdate().catch((error) => console.error(error));
+  autoUpdater.on('checking-for-update', () => {
+    if (updateStatus.state !== 'downloaded') publishUpdateStatus({ state: 'checking' });
   });
 
-  autoUpdater.on('download-progress', ({ percent }) => {
+  autoUpdater.on('update-not-available', () => {
+    if (updateStatus.state !== 'downloaded') publishUpdateStatus({ state: 'idle' });
+  });
+
+  autoUpdater.on('update-available', (info) => {
+    publishUpdateStatus({ state: 'available', version: info.version, percent: 0 });
+  });
+
+  autoUpdater.on('download-progress', ({ percent, transferred, total }) => {
     if (mainWindow && !mainWindow.isDestroyed()) mainWindow.setProgressBar(percent / 100);
+    publishUpdateStatus({
+      state: 'downloading',
+      percent: Math.max(0, Math.min(100, Math.round(percent))),
+      transferred,
+      total,
+    });
   });
 
-  autoUpdater.on('update-downloaded', async (info) => {
+  autoUpdater.on('update-downloaded', (info) => {
     if (mainWindow && !mainWindow.isDestroyed()) mainWindow.setProgressBar(-1);
-    const result = await showAppDialog({
-      type: 'info',
-      title: 'CoverSwap update ready',
-      message: `CoverSwap ${info.version} has been downloaded`,
-      detail: 'Restart CoverSwap to finish installing the update.',
-      buttons: ['Restart and install', 'Install when I close the app'],
-      defaultId: 0,
-      cancelId: 1,
-    });
-    if (result.response === 0) autoUpdater.quitAndInstall(false, true);
+    publishUpdateStatus({ state: 'downloaded', version: info.version, percent: 100 });
   });
 
   autoUpdater.on('error', (error) => {
     if (mainWindow && !mainWindow.isDestroyed()) mainWindow.setProgressBar(-1);
     console.warn(`Automatic update failed: ${error.message}`);
+    publishUpdateStatus({ state: 'error', message: error.message, portable: false });
   });
 }
 
 function scheduleUpdateChecks() {
   if (!app.isPackaged) return;
   const isPortable = Boolean(process.env.PORTABLE_EXECUTABLE_FILE);
-  const check = () => {
-    if (isPortable) checkPortableUpdate();
-    else autoUpdater.checkForUpdates().catch((error) => console.warn(`Update check failed: ${error.message}`));
+  runUpdateCheck = () => {
+    if (isPortable) return checkPortableUpdate();
+    return autoUpdater.checkForUpdates().catch((error) => {
+      console.warn(`Update check failed: ${error.message}`);
+      publishUpdateStatus({ state: 'error', message: error.message, portable: false });
+    });
   };
 
   if (!isPortable) configureInstalledUpdater();
-  setTimeout(check, 8000);
-  setInterval(check, UPDATE_INTERVAL_MS);
+  setTimeout(runUpdateCheck, 8000);
+  setInterval(runUpdateCheck, UPDATE_INTERVAL_MS);
 }
+
+ipcMain.handle('updates:get-status', () => updateStatus);
+ipcMain.on('updates:check', () => {
+  if (runUpdateCheck) runUpdateCheck();
+});
+ipcMain.on('updates:install', () => {
+  if (updateStatus.state === 'downloaded') autoUpdater.quitAndInstall(false, true);
+});
+ipcMain.on('updates:open-release', () => {
+  const url = updateStatus.releaseUrl || LATEST_RELEASE_PAGE;
+  if (url.startsWith('https://github.com/nimabio85/Audio-Cover-Swap/')) shell.openExternal(url);
+});
 
 async function createWindow() {
   localServer = await startServer(0);
@@ -133,6 +148,7 @@ async function createWindow() {
     autoHideMenuBar: true,
     show: false,
     webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,

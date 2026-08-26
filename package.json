@@ -1,13 +1,13 @@
 {
   "name": "file-cover-replacer",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "A safe Windows desktop app for replacing audio cover art, editing tags, and converting media to audio.",
   "main": "electron-main.js",
   "scripts": {
     "start": "electron .",
     "start:web": "node server.js",
     "dev": "node server.js",
-    "check": "node --check server.js && node --check electron-main.js && node --check public/app.js",
+    "check": "node --check server.js && node --check electron-main.js && node --check preload.js && node --check public/app.js",
     "dist": "npm run check && electron-builder --win nsis portable --publish never",
     "pack": "electron-builder --dir"
   },
@@ -48,6 +48,7 @@
     },
     "files": [
       "electron-main.js",
+      "preload.js",
       "server.js",
       "public/**/*",
       "package.json"
@@ -66,6 +67,7 @@
     },
     "nsis": {
       "artifactName": "CoverSwap-Setup-${version}-${arch}.${ext}",
+      "differentialPackage": true,
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true

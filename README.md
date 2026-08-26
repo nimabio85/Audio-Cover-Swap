@@ -50,11 +50,15 @@ The downloadable app bundles FFmpeg and does not require Node.js.
 ## Updates
 
 The installed edition checks GitHub Releases shortly after launch and every
-four hours. It asks before downloading, shows download progress in the Windows
-taskbar, and installs after CoverSwap restarts or closes. The portable edition
-notifies when a newer version exists and opens the release page for a manual
-portable download because a running portable executable cannot safely replace
-itself.
+four hours. A notification inside CoverSwap shows the download progress and
+offers **Restart to update** when the update is ready. Downloads start in the
+background automatically. The installer uses blockmap-based differential
+downloads, so it normally fetches only changed parts; if a patch is unavailable
+or fails verification, it safely falls back to the complete installer.
+
+The portable edition shows the same in-app notification and opens the release
+page for a manual portable download because a running portable executable
+cannot safely replace itself.
 
 ## Development
 
