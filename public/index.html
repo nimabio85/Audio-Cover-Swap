@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Replace audio file cover art in bulk. Select a folder, pick a new cover image, and update all your music files instantly." />
+  <title>CoverSwap — Audio Cover Art Replacer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <!-- Background particles -->
+  <div class="bg-particles" id="bgParticles"></div>
+
+  <!-- App Shell -->
+  <div class="app-shell">
+    <!-- Header -->
+    <header class="app-header">
+      <div class="logo">
+        <div class="logo-icon">
+          <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="4" y="4" width="32" height="32" rx="8" stroke="url(#logoGrad)" stroke-width="2.5"/>
+            <circle cx="20" cy="20" r="8" stroke="url(#logoGrad)" stroke-width="2"/>
+            <circle cx="20" cy="20" r="2.5" fill="url(#logoGrad)"/>
+            <path d="M20 12V8M20 32V28M28 20H32M8 20H12" stroke="url(#logoGrad)" stroke-width="1.5" stroke-linecap="round"/>
+            <defs>
+              <linearGradient id="logoGrad" x1="4" y1="4" x2="36" y2="36">
+                <stop stop-color="#8b5cf6"/>
+                <stop offset="1" stop-color="#3b82f6"/>
+              </linearGradient>
+            </defs>
+          </svg>
+        </div>
+        <div class="logo-text">
+          <h1>CoverSwap</h1>
+          <p>Audio Cover Art Replacer</p>
+        </div>
+      </div>
+      <div class="header-status" id="headerStatus">
+        <span class="status-dot"></span>
+        <span class="status-text">Ready</span>
+      </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="app-main">
+      <!-- Step 1: Select Folder -->
+      <section class="step-card" id="stepFolder">
+        <div class="step-header">
+          <div class="step-number">1</div>
+          <div class="step-info">
+            <h2>Select Folder</h2>
+            <p>Choose a folder containing your audio files</p>
+          </div>
+        </div>
+        <div class="step-content">
+          <div class="path-input-group">
+            <div class="path-input-wrapper">
+              <svg class="path-icon" viewBox="0 0 20 20" fill="currentColor"><path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z"/></svg>
+              <input type="text" id="folderPathInput" class="path-input" placeholder="Enter folder path or browse..." />
+              <button class="btn-browse" id="btnBrowse" title="Browse folders">
+                <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd"/></svg>
+              </button>
+            </div>
+            <label class="checkbox-label">
+              <input type="checkbox" id="recursiveCheckbox" checked />
+              <span class="checkmark"></span>
+              Include subfolders
+            </label>
+          </div>
+
+          <!-- Folder Browser Modal -->
+          <div class="folder-browser" id="folderBrowser" style="display:none;">
+            <div class="browser-header">
+              <button class="btn-icon" id="btnDrives" title="Show drives">
+                <svg viewBox="0 0 20 20" fill="currentColor"><path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z"/></svg>
+              </button>
+              <button class="btn-icon" id="btnParent" title="Go up">
+                <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z" clip-rule="evenodd"/></svg>
+              </button>
+              <div class="browser-path" id="browserPath">Select a folder</div>
+            </div>
+            <div class="browser-list" id="browserList"></div>
+            <div class="browser-actions">
+              <button class="btn btn-ghost" id="btnCancelBrowse">Cancel</button>
+              <button class="btn btn-primary" id="btnSelectFolder">Select This Folder</button>
+            </div>
+          </div>
+
+          <button class="btn btn-accent btn-scan" id="btnScan">
+            <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4 2a2 2 0 00-2 2v12a2 2 0 002 2h12a2 2 0 002-2V4a2 2 0 00-2-2H4zm1 3a1 1 0 011-1h3a1 1 0 110 2H6a1 1 0 01-1-1zm0 4a1 1 0 011-1h8a1 1 0 110 2H6a1 1 0 01-1-1zm0 4a1 1 0 011-1h5a1 1 0 110 2H6a1 1 0 01-1-1z" clip-rule="evenodd"/></svg>
+            Scan for Audio Files
+          </button>
+        </div>
+      </section>
+
+      <!-- Step 2: Select Cover Image -->
+      <section class="step-card disabled" id="stepImage">
+        <div class="step-header">
+          <div class="step-number">2</div>
+          <div class="step-info">
+            <h2>New Cover Image</h2>
+            <p>Select the image to use as cover art</p>
+          </div>
+        </div>
+        <div class="step-content">
+          <div class="image-drop-zone" id="imageDropZone">
+            <div class="drop-zone-content" id="dropZoneContent">
+              <div class="drop-icon">
+                <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <rect x="6" y="10" width="36" height="28" rx="4" stroke="currentColor" stroke-width="2"/>
+                  <circle cx="18" cy="22" r="4" stroke="currentColor" stroke-width="2"/>
+                  <path d="M6 34l10-10 8 8 6-6 12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </div>
+              <p class="drop-text">Drop image here or click to select</p>
+              <p class="drop-hint">Supports JPEG, PNG, WebP • Max 20MB</p>
+            </div>
+            <div class="image-preview" id="imagePreview" style="display:none;">
+              <img id="previewImg" src="" alt="Cover preview" />
+              <button class="btn-remove-image" id="btnRemoveImage" title="Remove image">
+                <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
+              </button>
+            </div>
+            <input type="file" id="imageFileInput" accept="image/jpeg,image/png,image/webp,image/bmp,image/gif" hidden />
+          </div>
+        </div>
+      </section>
+
+      <!-- Step 3: Text & Metadata -->
+      <section class="step-card disabled" id="stepMetadata">
+        <div class="step-header">
+          <div class="step-number">3</div>
+          <div class="step-info">
+            <h2>Text & Metadata</h2>
+            <p>Replace or update text tags inside your audio files</p>
+          </div>
+          <div class="step-actions">
+            <div class="metadata-tabs">
+              <button class="meta-tab active" data-tab="set" id="btnTabSet">Set / Overwrite</button>
+              <button class="meta-tab" data-tab="replace" id="btnTabReplace">Find & Replace</button>
+            </div>
+          </div>
+        </div>
+        <div class="step-content">
+          <!-- Tab 1: Set / Overwrite Mode -->
+          <div class="meta-pane active" id="metaPaneSet">
+            <p class="meta-hint">Check the box next to any tag you want to update across all selected files. Unchecked tags will not be modified.</p>
+            <div class="meta-grid">
+              <div class="meta-field-item" id="fieldTitle">
+                <label class="meta-field-header">
+                  <input type="checkbox" id="metaCheckTitle" class="meta-check" />
+                  <span class="checkmark"></span>
+                  <span class="meta-field-label">Title</span>
+                </label>
+                <input type="text" id="metaInputTitle" class="meta-input" placeholder="Leave empty to clear or enter new title..." />
+              </div>
+
+              <div class="meta-field-item" id="fieldArtist">
+                <label class="meta-field-header">
+                  <input type="checkbox" id="metaCheckArtist" class="meta-check" />
+                  <span class="checkmark"></span>
+                  <span class="meta-field-label">Contributing artists</span>
+                </label>
+                <input type="text" id="metaInputArtist" class="meta-input" placeholder="Enter contributing artists..." />
+              </div>
+
+              <div class="meta-field-item" id="fieldAlbumArtist">
+                <label class="meta-field-header">
+                  <input type="checkbox" id="metaCheckAlbumArtist" class="meta-check" />
+                  <span class="checkmark"></span>
+                  <span class="meta-field-label">Album artist</span>
+                </label>
+                <input type="text" id="metaInputAlbumArtist" class="meta-input" placeholder="Enter album artist..." />
+              </div>
+
+              <div class="meta-field-item" id="fieldAlbum">
+                <label class="meta-field-header">
+                  <input type="checkbox" id="metaCheckAlbum" class="meta-check" />
+                  <span class="checkmark"></span>
+                  <span class="meta-field-label">Album</span>
+                </label>
+                <input type="text" id="metaInputAlbum" class="meta-input" placeholder="Enter album name..." />
+              </div>
+            </div>
+            <div class="meta-actions-bar">
+              <button class="btn btn-ghost btn-sm" id="btnClearSet">Clear All Fields</button>
+            </div>
+          </div>
+
+          <!-- Tab 2: Find & Replace Mode -->
+          <div class="meta-pane" id="metaPaneReplace" style="display: none;">
+            <p class="meta-hint">Search for text inside your tags and replace it across all selected files.</p>
+            <div class="find-replace-inputs">
+              <div class="find-replace-box">
+                <label class="find-label">Find text inside tags:</label>
+                <input type="text" id="metaFindText" class="meta-input" placeholder="e.g. Feat. or Old Album Name..." />
+              </div>
+              <div class="find-replace-box">
+                <label class="find-label">Replace with:</label>
+                <input type="text" id="metaReplaceText" class="meta-input" placeholder="e.g. ft. or New Album Name (or empty to remove)..." />
+              </div>
+            </div>
+            <div class="targets-section">
+              <span class="targets-title">Target fields to replace text inside:</span>
+              <div class="targets-list">
+                <label class="checkbox-label" style="margin-top: 0;">
+                  <input type="checkbox" id="metaTargetTitle" checked />
+                  <span class="checkmark"></span>
+                  Title
+                </label>
+                <label class="checkbox-label" style="margin-top: 0;">
+                  <input type="checkbox" id="metaTargetArtist" checked />
+                  <span class="checkmark"></span>
+                  Contributing artists
+                </label>
+                <label class="checkbox-label" style="margin-top: 0;">
+                  <input type="checkbox" id="metaTargetAlbumArtist" checked />
+                  <span class="checkmark"></span>
+                  Album artist
+                </label>
+                <label class="checkbox-label" style="margin-top: 0;">
+                  <input type="checkbox" id="metaTargetAlbum" checked />
+                  <span class="checkmark"></span>
+                  Album
+                </label>
+              </div>
+              <label class="checkbox-label case-label">
+                <input type="checkbox" id="metaCaseSensitive" />
+                <span class="checkmark"></span>
+                Case sensitive search
+              </label>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Step 4: Audio Files List -->
+      <section class="step-card disabled" id="stepFiles">
+        <div class="step-header">
+          <div class="step-number">4</div>
+          <div class="step-info">
+            <h2>Audio Files</h2>
+            <p id="filesSubtitle">Scan a folder to see audio files</p>
+          </div>
+          <div class="step-actions">
+            <button class="btn btn-ghost btn-sm" id="btnSelectAll">Select All</button>
+            <button class="btn btn-ghost btn-sm" id="btnDeselectAll">Deselect All</button>
+          </div>
+        </div>
+        <div class="step-content">
+          <div class="files-list" id="filesList">
+            <div class="empty-state">
+              <svg viewBox="0 0 48 48" fill="none"><path d="M24 4L6 14v20l18 10 18-10V14L24 4z" stroke="currentColor" stroke-width="2"/><path d="M6 14l18 10M24 24v20M24 24l18-10" stroke="currentColor" stroke-width="2"/></svg>
+              <p>No audio files scanned yet</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Step 5: Convert audio and video media -->
+      <section class="step-card disabled" id="stepConvert">
+        <div class="step-header">
+          <div class="step-number">5</div>
+          <div class="step-info">
+            <h2>Convert Media to Audio</h2>
+            <p id="convertSubtitle">Convert supported audio and video inputs into verified audio files</p>
+          </div>
+          <div class="step-actions">
+            <button class="btn btn-ghost btn-sm" id="btnSelectAllNonAudio">Select All</button>
+            <button class="btn btn-ghost btn-sm" id="btnDeselectAllNonAudio">Deselect All</button>
+          </div>
+        </div>
+        <div class="step-content">
+          <div class="convert-settings-grid">
+            <div class="convert-setting-item full-width">
+              <label class="convert-label">
+                <svg viewBox="0 0 20 20" fill="currentColor" style="width:16px;height:16px;display:inline-block;vertical-align:middle;margin-right:4px;"><path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z"/></svg>
+                Destination Output Folder:
+              </label>
+              <div class="path-input-wrapper">
+                <input type="text" id="convertOutputDirInput" class="path-input" placeholder="Select output folder for converted audio..." />
+                <button class="btn-browse" id="btnBrowseConvertDir" title="Browse target folder">
+                  <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd"/></svg>
+                </button>
+              </div>
+            </div>
+
+            <div class="convert-setting-item">
+              <label class="convert-label">Target Audio Format:</label>
+              <select id="convertFormatSelect" class="convert-select">
+                <option value="mp3" selected>MP3 (.mp3)</option>
+                <option value="wav">WAV (.wav)</option>
+                <option value="flac">FLAC (.flac)</option>
+                <option value="m4a">M4A / AAC (.m4a)</option>
+                <option value="ogg">OGG Vorbis (.ogg)</option>
+                <option value="opus">Opus (.opus)</option>
+                <option value="aac">AAC Raw (.aac)</option>
+              </select>
+            </div>
+
+            <div class="convert-setting-item">
+              <label class="convert-label">Audio Quality / Bitrate:</label>
+              <select id="convertBitrateSelect" class="convert-select">
+                <option value="320k" selected>320 kbps (Highest Quality)</option>
+                <option value="256k">256 kbps (Very High Quality)</option>
+                <option value="192k">192 kbps (Standard Quality)</option>
+                <option value="128k">128 kbps (Compact File Size)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="non-audio-files-wrapper" style="margin-top:20px;">
+              <span class="targets-title" style="margin-bottom:8px;display:block;">Scanned audio and video files:</span>
+            <div class="files-list" id="nonAudioFilesList">
+              <div class="empty-state">
+                <svg viewBox="0 0 48 48" fill="none"><path d="M24 4L6 14v20l18 10 18-10V14L24 4z" stroke="currentColor" stroke-width="2"/><path d="M6 14l18 10M24 24v20M24 24l18-10" stroke="currentColor" stroke-width="2"/></svg>
+                <p>No convertible media files scanned yet</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="convert-action-row" style="margin-top:20px;display:flex;align-items:center;justify-content:space-between;gap:16px;">
+            <div class="convert-summary-info">
+              <span id="nonAudioSelectedCount" style="color:var(--text-secondary);font-size:0.9rem;">0 media files selected</span>
+            </div>
+            <button class="btn btn-accent btn-convert" id="btnStartConvert" disabled>
+              <svg viewBox="0 0 20 20" fill="currentColor" style="width:18px;height:18px;margin-right:6px;"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v3.586L7.707 9.293a1 1 0 00-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 00-1.414-1.414L11 10.586V7z" clip-rule="evenodd"/></svg>
+              Convert Selected to Audio
+            </button>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Bottom Action Bar -->
+    <div class="action-bar" id="actionBar">
+      <div class="action-info">
+        <span id="selectedCount">0 files selected</span>
+        <span class="separator">•</span>
+        <span id="writableCount">Compatibility shown after scanning</span>
+      </div>
+      <button class="btn btn-replace" id="btnReplace" disabled>
+        <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd"/></svg>
+        Replace Covers
+      </button>
+    </div>
+
+    <!-- Progress Modal -->
+    <div class="modal-overlay" id="progressModal" style="display:none;">
+      <div class="modal">
+        <div class="modal-header">
+          <h3 id="modalTitle">Replacing Covers...</h3>
+        </div>
+        <div class="modal-body">
+          <div class="progress-bar-container">
+            <div class="progress-bar" id="progressBar"></div>
+          </div>
+          <p class="progress-text" id="progressText">Preparing...</p>
+          <div class="progress-stats" id="progressStats" style="display:none;">
+            <div class="stat success">
+              <span class="stat-value" id="statSuccess">0</span>
+              <span class="stat-label">Success</span>
+            </div>
+            <div class="stat error">
+              <span class="stat-value" id="statError">0</span>
+              <span class="stat-label">Failed</span>
+            </div>
+            <div class="stat skipped">
+              <span class="stat-value" id="statSkipped">0</span>
+              <span class="stat-label">Skipped</span>
+            </div>
+          </div>
+          <div class="progress-results" id="progressResults" style="display:none;"></div>
+        </div>
+        <div class="modal-footer" id="modalFooter" style="display:none;">
+          <button class="btn btn-primary" id="btnCloseModal">Done</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
