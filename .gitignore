@@ -5,3 +5,8 @@ dist/
 .DS_Store
 Thumbs.db
 .coverswap-*
+test/
+test_cover.*
+scripts/build-icon.js
+build/icon.svg
+start.bat

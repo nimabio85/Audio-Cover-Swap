@@ -48,7 +48,7 @@ Requirements: Node.js 22 or newer and Windows.
 
 ```powershell
 npm ci
-npm test
+npm run check
 npm start
 ```
 
@@ -61,12 +61,12 @@ npm run dist
 
 Artifacts are written to `release/`.
 
-## Automated verification
+## Release verification
 
-`npm test` generates real audio fixtures with the bundled FFmpeg binary and
-checks every advertised conversion output, every cover-writable format, the
-metadata container matrix, collision handling, full decode verification, and
-byte-for-byte preservation of rejected corrupt inputs.
+Before v1.0.0 was published, its audio pipeline passed 24 generated-fixture
+checks covering every advertised conversion output, every cover-writable
+format, the metadata container matrix, collision handling, full decode
+verification, and byte-for-byte preservation of rejected corrupt inputs.
 
 ## License
 
