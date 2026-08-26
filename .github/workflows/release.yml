@@ -8,6 +8,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   windows:
     runs-on: windows-latest
@@ -27,7 +31,7 @@ jobs:
           $tag = "${{ github.ref_name }}"
           $assets = @(
             Get-ChildItem release/*.exe
-            Get-ChildItem release/*.yml
+            Get-Item release/latest.yml
             Get-ChildItem release/*.blockmap
           ).FullName
           gh release view $tag | Out-Null
