@@ -10,7 +10,7 @@
     "test": "node --test --test-concurrency=1",
     "test:audio": "node --test --test-concurrency=1 test/audio-pipeline.test.js",
     "build:icon": "node scripts/build-icon.js",
-    "dist": "npm test && electron-builder --win nsis portable",
+    "dist": "npm test && electron-builder --win nsis portable --publish never",
     "pack": "electron-builder --dir"
   },
   "keywords": [],
