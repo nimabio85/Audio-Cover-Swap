@@ -128,7 +128,7 @@
 
     const colors = {
       emerald: { bg: '#34d399', shadow: 'rgba(52, 211, 153, 0.5)' },
-      violet: { bg: '#a78bfa', shadow: 'rgba(167, 139, 250, 0.5)' },
+      violet: { bg: '#f9a8d4', shadow: 'rgba(249, 168, 212, 0.5)' },
       amber: { bg: '#fbbf24', shadow: 'rgba(251, 191, 36, 0.5)' },
       red: { bg: '#f87171', shadow: 'rgba(248, 113, 113, 0.5)' },
     };
@@ -606,7 +606,7 @@
       els.dropZoneContent.style.display = 'none';
       els.imagePreview.style.display = 'flex';
       els.imageDropZone.style.borderStyle = 'solid';
-      els.imageDropZone.style.borderColor = 'rgba(167, 139, 250, 0.3)';
+      els.imageDropZone.style.borderColor = 'rgba(249, 168, 212, 0.3)';
     };
     reader.readAsDataURL(file);
 
