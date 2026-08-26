@@ -213,7 +213,6 @@ body {
 .update-notification:not(:disabled):hover {
   border-color: #f9a8d4;
   background: rgba(236, 72, 153, 0.22);
-  transform: translateY(-1px);
 }
 .update-notification:focus-visible {
   outline: 2px solid #f9a8d4;
@@ -335,6 +334,14 @@ body {
   margin-bottom: 16px;
 }
 
+.input-label {
+  display: block;
+  margin: 0 0 7px 2px;
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
 .path-input-wrapper {
   display: flex;
   align-items: center;
@@ -368,6 +375,8 @@ body {
   font-size: 0.9rem;
   padding: 12px 10px;
 }
+
+.path-input:focus-visible { outline: none; }
 
 .path-input::placeholder {
   color: var(--text-muted);
@@ -409,8 +418,14 @@ body {
   user-select: none;
 }
 
-.checkbox-label input[type="checkbox"] {
-  display: none;
+.checkbox-label input[type="checkbox"],
+.meta-field-header input[type="checkbox"] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  opacity: 0;
+  pointer-events: none;
 }
 
 .checkmark {
@@ -425,12 +440,20 @@ body {
   flex-shrink: 0;
 }
 
-.checkbox-label input:checked + .checkmark {
+.checkbox-label input:checked + .checkmark,
+.meta-field-header input:checked + .checkmark {
   background: var(--gradient-primary);
   border-color: transparent;
 }
 
-.checkbox-label input:checked + .checkmark::after {
+.checkbox-label input:focus-visible + .checkmark,
+.meta-field-header input:focus-visible + .checkmark {
+  outline: 2px solid #f9a8d4;
+  outline-offset: 3px;
+}
+
+.checkbox-label input:checked + .checkmark::after,
+.meta-field-header input:checked + .checkmark::after {
   content: '✓';
   font-size: 11px;
   color: white;
@@ -445,6 +468,11 @@ body {
   margin-bottom: 16px;
   overflow: hidden;
   animation: slideDown 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.convert-setting-item > .folder-browser {
+  width: 100%;
+  margin: 12px 0 0;
 }
 
 @keyframes slideDown {
@@ -468,7 +496,7 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  direction: rtl;
+  direction: ltr;
   text-align: left;
 }
 
@@ -501,7 +529,8 @@ body {
 .browser-list {
   max-height: 260px;
   overflow-y: auto;
-  padding: 6px;
+  padding: 8px;
+  background: rgba(9, 4, 8, 0.18);
 }
 
 .browser-list::-webkit-scrollbar {
@@ -521,7 +550,8 @@ body {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 8px 12px;
+  min-height: 44px;
+  padding: 10px 12px;
   border-radius: var(--radius-sm);
   cursor: pointer;
   transition: var(--transition-fast);
@@ -615,7 +645,6 @@ body {
 .btn-accent:hover {
   filter: brightness(1.15);
   box-shadow: 0 4px 20px rgba(236, 72, 153, 0.35);
-  transform: translateY(-1px);
 }
 
 .btn-scan {
@@ -640,7 +669,6 @@ body {
 .btn-replace:hover:not(:disabled) {
   filter: brightness(1.15);
   box-shadow: 0 4px 24px rgba(244, 63, 94, 0.4);
-  transform: translateY(-2px);
 }
 
 .btn-replace:disabled {
@@ -1014,10 +1042,23 @@ body {
   font-size: 0.75rem;
   color: var(--text-muted);
   margin-top: 2px;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .file-meta span {
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.file-badges {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  flex-wrap: wrap;
+  flex-shrink: 0;
 }
 
 .file-badge {
@@ -1336,13 +1377,17 @@ body {
 /* --- Toast Notification --- */
 .toast-container {
   position: fixed;
-  top: 20px;
+  bottom: 96px;
   right: 20px;
   z-index: 200;
   display: flex;
   flex-direction: column;
   gap: 8px;
+  width: min(510px, calc(100vw - 40px));
 }
+
+body:not(.has-scanned) .toast-container,
+body[data-mode="convert"] .toast-container { bottom: 20px; }
 
 .toast {
   display: flex;
@@ -1357,6 +1402,10 @@ body {
   color: var(--text-primary);
   animation: toastIn 0.4s cubic-bezier(0.16, 1, 0.3, 1);
   backdrop-filter: blur(20px);
+}
+
+@media (max-width: 640px) {
+  body.has-scanned:not([data-mode="convert"]) .toast-container { bottom: 154px; }
 }
 
 .toast.error {
@@ -1656,12 +1705,15 @@ body {
 .folder-card .step-content {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "path scan"
+    "browser browser";
   gap: 14px;
   align-items: start;
 }
-.folder-card .path-input-group { margin: 0; }
-.folder-card .folder-browser { grid-column: 1 / -1; }
-.folder-card .btn-scan { width: auto; min-width: 190px; min-height: 46px; }
+.folder-card .path-input-group { grid-area: path; margin: 0; }
+.folder-card .folder-browser { grid-area: browser; margin: 0; }
+.folder-card .btn-scan { grid-area: scan; align-self: end; width: auto; min-width: 190px; min-height: 46px; }
 
 .workspace-panel:not(.has-files) > .customize-grid,
 .workspace-panel:not(.has-files) > .step-card { display: none; }
@@ -1688,10 +1740,12 @@ body {
 
 button.browser-item {
   width: 100%;
-  color: inherit;
+  color: var(--text-secondary);
   font: inherit;
   text-align: left;
   border: 0;
+  appearance: none;
+  background: transparent;
   cursor: pointer;
 }
 
@@ -1732,14 +1786,15 @@ button.browser-item {
 }
 body[data-mode="convert"] .action-bar,
 body:not(.has-scanned) .action-bar { display: none; }
+body.has-scanned .welcome-panel { display: none; }
+body.has-scanned .folder-card .step-header { padding-block: 14px; }
+body.has-scanned .folder-card .step-content { padding-block: 16px; }
 body[data-mode="convert"] .app-shell,
 body:not(.has-scanned) .app-shell { padding-bottom: 36px; }
 
 .file-item[role="checkbox"]:focus-visible,
 .image-drop-zone:focus-visible,
 button:focus-visible,
-input:focus-visible,
-select:focus-visible,
 a:focus-visible {
   outline: 2px solid #f9a8d4;
   outline-offset: 3px;
@@ -1767,7 +1822,10 @@ a:focus-visible {
   .tool-tab strong, .tool-tab small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .workflow-step strong { display: none; }
   .workflow-line { margin-inline: 8px; }
-  .folder-card .step-content { grid-template-columns: 1fr; }
+  .folder-card .step-content {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "path" "scan" "browser";
+  }
   .folder-card .btn-scan { width: 100%; }
   .folder-card .folder-browser { grid-column: auto; }
   .step-card, .path-input-wrapper { width: 100%; min-width: 0; }
@@ -1775,6 +1833,17 @@ a:focus-visible {
   .convert-settings-grid { grid-template-columns: 1fr; }
   .convert-action-row { align-items: stretch !important; flex-direction: column; }
   .btn-convert { justify-content: center; width: 100%; }
+  .file-item {
+    display: grid;
+    grid-template-columns: 20px 44px minmax(0, 1fr);
+    align-items: center;
+    gap: 10px;
+  }
+  .file-badges {
+    grid-column: 2 / -1;
+    justify-content: flex-start;
+  }
+  body.has-scanned[data-mode="edit"] .app-shell { padding-bottom: 170px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

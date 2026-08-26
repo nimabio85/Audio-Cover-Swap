@@ -98,11 +98,11 @@
         </div>
         <div class="step-content">
           <div class="path-input-group">
-            <label class="sr-only" for="folderPathInput">Music folder path</label>
+            <label class="input-label" for="folderPathInput">Folder path</label>
             <div class="path-input-wrapper">
               <svg class="path-icon" viewBox="0 0 20 20" fill="currentColor"><path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z"/></svg>
               <input type="text" id="folderPathInput" class="path-input" placeholder="Enter folder path or browse..." />
-              <button class="btn-browse" id="btnBrowse" title="Browse folders" aria-label="Browse for music folder">
+              <button class="btn-browse" id="btnBrowse" title="Browse folders" aria-label="Browse for music folder" aria-controls="folderBrowser" aria-expanded="false">
                 <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd"/></svg>
               </button>
             </div>
@@ -114,7 +114,7 @@
           </div>
 
           <!-- Folder Browser Modal -->
-          <div class="folder-browser" id="folderBrowser" style="display:none;">
+          <div class="folder-browser" id="folderBrowser" style="display:none;" role="region" aria-label="Folder browser">
             <div class="browser-header">
               <button class="btn-icon" id="btnDrives" title="Show drives" aria-label="Show drives">
                 <svg viewBox="0 0 20 20" fill="currentColor"><path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z"/></svg>
@@ -310,7 +310,7 @@
             <div class="path-input-wrapper" style="margin-top:10px;">
               <label class="sr-only" for="replaceOutputDirInput">Folder for edited copies</label>
               <input type="text" id="replaceOutputDirInput" class="path-input" placeholder="Select folder for replaced copies..." disabled />
-              <button class="btn-browse" id="btnBrowseReplaceDir" title="Browse replacement output folder" aria-label="Browse for edited copies folder" disabled>
+              <button class="btn-browse" id="btnBrowseReplaceDir" title="Browse replacement output folder" aria-label="Browse for edited copies folder" aria-controls="folderBrowser" aria-expanded="false" disabled>
                 <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd"/></svg>
               </button>
             </div>
@@ -353,7 +353,7 @@
               </label>
               <div class="path-input-wrapper">
                 <input type="text" id="convertOutputDirInput" class="path-input" placeholder="Select output folder for converted audio..." />
-                <button class="btn-browse" id="btnBrowseConvertDir" title="Browse target folder" aria-label="Browse for converted audio folder">
+                <button class="btn-browse" id="btnBrowseConvertDir" title="Browse target folder" aria-label="Browse for converted audio folder" aria-controls="folderBrowser" aria-expanded="false">
                   <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd"/></svg>
                 </button>
               </div>

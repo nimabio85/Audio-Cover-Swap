@@ -112,6 +112,8 @@
   };
 
   let lastFocusedElement = null;
+  const folderBrowserHome = els.folderBrowser.parentElement;
+  let folderBrowserTrigger = null;
 
   // --- Toast System ---
   let toastContainer = document.createElement('div');
@@ -268,7 +270,25 @@
   // --- Folder Browser ---
   async function openBrowser(targetMode = 'scan') {
     state.browseTarget = targetMode;
+    folderBrowserTrigger = targetMode === 'replace_output'
+      ? els.btnBrowseReplaceDir
+      : targetMode === 'convert_output'
+        ? els.btnBrowseConvertDir
+        : els.btnBrowse;
+    const browserMount = targetMode === 'replace_output'
+      ? els.replaceOutputDirInput.closest('.convert-setting-item')
+      : targetMode === 'convert_output'
+        ? els.convertOutputDirInput.closest('.convert-setting-item')
+        : folderBrowserHome;
+    browserMount.appendChild(els.folderBrowser);
     els.folderBrowser.style.display = 'block';
+    [els.btnBrowse, els.btnBrowseReplaceDir, els.btnBrowseConvertDir].forEach((button) => {
+      button.setAttribute('aria-expanded', String(
+        (targetMode === 'scan' && button === els.btnBrowse) ||
+        (targetMode === 'replace_output' && button === els.btnBrowseReplaceDir) ||
+        (targetMode === 'convert_output' && button === els.btnBrowseConvertDir)
+      ));
+    });
     let startPath = 'C:\\';
     if (targetMode === 'replace_output') {
       startPath = els.replaceOutputDirInput.value.trim() || els.folderPathInput.value.trim() || 'C:\\';
@@ -277,11 +297,19 @@
     } else {
       startPath = els.folderPathInput.value.trim() || 'C:\\';
     }
-    await browseTo(startPath);
+    const opened = await browseTo(startPath);
+    const sourceFolder = els.folderPathInput.value.trim();
+    if (!opened && sourceFolder && sourceFolder !== startPath) {
+      await browseTo(sourceFolder);
+    }
+    els.folderBrowser.scrollIntoView({ block: 'start', behavior: 'smooth' });
   }
 
   function closeBrowser() {
     els.folderBrowser.style.display = 'none';
+    [els.btnBrowse, els.btnBrowseReplaceDir, els.btnBrowseConvertDir]
+      .forEach((button) => button.setAttribute('aria-expanded', 'false'));
+    if (folderBrowserTrigger && document.contains(folderBrowserTrigger)) folderBrowserTrigger.focus();
   }
 
   async function browseTo(dirPath) {
@@ -291,16 +319,20 @@
     const data = await api('/browse', { method: 'POST', body: { dirPath } });
 
     if (data.error) {
-      els.browserList.innerHTML = `<div class="browser-item empty">${data.error}</div>`;
-      return;
+      const errorItem = document.createElement('div');
+      errorItem.className = 'browser-item empty';
+      errorItem.textContent = data.error;
+      els.browserList.replaceChildren(errorItem);
+      return false;
     }
 
     els.browserPath.textContent = data.currentPath;
+    els.browserPath.title = data.currentPath;
     state.currentBrowsePath = data.currentPath;
 
     if (data.items.length === 0) {
       els.browserList.innerHTML = '<div class="browser-item empty">No subfolders</div>';
-      return;
+      return true;
     }
 
     els.browserList.innerHTML = '';
@@ -315,6 +347,7 @@
       button.addEventListener('click', () => browseTo(item.path));
       els.browserList.appendChild(button);
     }
+    return true;
   }
 
   async function showDrives() {
@@ -440,19 +473,19 @@
       // Build subtitle with scan summary
       let subtitle = `${data.totalAudioFiles} audio files found`;
       if (data.skippedFiles > 0) {
-        subtitle += ` • ${data.skippedFiles} non-audio files found`;
+        subtitle += ` • ${data.skippedFiles} other file${data.skippedFiles === 1 ? '' : 's'} found`;
       }
       subtitle += ` • ${data.totalFilesScanned} total files scanned`;
       els.filesSubtitle.textContent = subtitle;
       els.convertSubtitle.textContent = `${state.scannedNonAudioFiles.length} audio and video files available for conversion`;
 
-      // Show skipped extensions as a toast if there are any
+      // Explain other discovered file types without implying convertible media is unusable.
       if (data.skippedFiles > 0 && data.skippedExtensions) {
         const extList = Object.entries(data.skippedExtensions)
           .sort((a, b) => b[1] - a[1])
           .map(([ext, count]) => `${ext} (${count})`)
           .join(', ');
-        showToast(`Skipped non-audio: ${extList}`, 'info');
+        showToast(`Other file types found: ${extList}. Use Convert media for supported formats.`, 'info');
       }
 
       const audioLabel = `${data.totalAudioFiles} audio file${data.totalAudioFiles === 1 ? '' : 's'}`;
@@ -509,9 +542,11 @@
             ${sizeStr ? `<span>• ${sizeStr}</span>` : ''}
           </div>
         </div>
-        <span class="file-badge ${badgeClass}">${ext}</span>
-        <span class="file-badge ${file.hasCover ? 'has-cover' : 'no-cover'}">${file.hasCover ? 'Cover' : 'No Cover'}</span>
-        <span class="file-badge ${file.coverWritable ? 'has-cover' : 'no-cover'}">${file.coverWritable ? 'Cover editing' : file.metadataWritable ? 'Tags only' : 'Convert only'}</span>
+        <div class="file-badges">
+          <span class="file-badge ${badgeClass}">${ext}</span>
+          <span class="file-badge ${file.hasCover ? 'has-cover' : 'no-cover'}">${file.hasCover ? 'Cover' : 'No Cover'}</span>
+          <span class="file-badge ${file.coverWritable ? 'has-cover' : 'no-cover'}">${file.coverWritable ? 'Cover editing' : file.metadataWritable ? 'Tags only' : 'Convert only'}</span>
+        </div>
       `;
 
       item.addEventListener('click', () => toggleFileSelection(file.path, item));
@@ -994,7 +1029,7 @@
             ${sizeStr ? `<span>• ${sizeStr}</span>` : ''}
           </div>
         </div>
-        <span class="file-badge ${badgeClass}">${ext}</span>
+        <div class="file-badges"><span class="file-badge ${badgeClass}">${ext}</span></div>
       `;
 
       item.addEventListener('click', () => toggleNonAudioFileSelection(file.path, item));

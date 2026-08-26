@@ -51,6 +51,14 @@ app.use((req, res, next) => {
 });
 app.use(express.static(path.join(__dirname, 'public')));
 
+const HIDDEN_BROWSER_DIRECTORIES = new Set([
+  '$recycle.bin',
+  '$windows.~bt',
+  '$windows.~ws',
+  'recovery',
+  'system volume information',
+]);
+
 // Supported audio & video container extensions — ALL are writable via ffmpeg
 const AUDIO_EXTENSIONS = new Set([
   '.mp3', '.aac', '.ogg', '.oga', '.opus', '.wma', '.m4a', '.m4b',
@@ -595,7 +603,7 @@ app.post('/api/browse', async (req, res) => {
     const items = [];
 
     for (const entry of entries) {
-      if (entry.name.startsWith('.')) continue;
+      if (entry.name.startsWith('.') || HIDDEN_BROWSER_DIRECTORIES.has(entry.name.toLowerCase())) continue;
       const fullPath = path.join(resolvedPath, entry.name);
       if (entry.isDirectory()) {
         items.push({ name: entry.name, path: fullPath, type: 'directory' });
