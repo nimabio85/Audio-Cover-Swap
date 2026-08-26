@@ -793,7 +793,7 @@ const jobs = new Map();
  */
 app.post('/api/create-job', upload.single('coverImage'), async (req, res) => {
   try {
-    const { files, metadataOptions } = req.body;
+    const { files, metadataOptions, outputDir } = req.body;
     const coverImage = req.file;
 
     let parsedMetadata = null;
@@ -812,6 +812,16 @@ app.post('/api/create-job', upload.single('coverImage'), async (req, res) => {
     const filePaths = JSON.parse(files);
     if (filePaths.length === 0) {
       return res.json({ error: 'Selected files list is empty' });
+    }
+
+    let resolvedOutputDir = null;
+    if (typeof outputDir === 'string' && outputDir.trim()) {
+      resolvedOutputDir = path.resolve(outputDir.trim());
+      try {
+        await fsp.mkdir(resolvedOutputDir, { recursive: true });
+      } catch (mkdirErr) {
+        return res.json({ error: `Cannot create replacement output directory: ${mkdirErr.message}` });
+      }
     }
 
     let sharp;
@@ -848,6 +858,7 @@ app.post('/api/create-job', upload.single('coverImage'), async (req, res) => {
       imageBuffer,
       imageMime,
       metadataOptions: parsedMetadata,
+      outputDir: resolvedOutputDir,
       processed: 0,
       total: filePaths.length,
       successCount: 0,
@@ -1000,6 +1011,48 @@ async function startJobProcessing(job) {
     }
   }
 
+  async function applyReplacementEdit(targetPath) {
+    const ext = path.extname(targetPath).toLowerCase();
+    if (ext === '.wav' || ext === '.wave') {
+      return replaceCoverWithWavRIFF(targetPath, job.imageBuffer, job.imageMime, job.metadataOptions);
+    }
+    if (ext === '.mp3') {
+      return replaceCoverWithID3(targetPath, job.imageBuffer, job.imageMime, job.metadataOptions);
+    }
+    return replaceCoverWithFFmpeg(targetPath, job.coverTempPath, job.metadataOptions);
+  }
+
+  async function editOriginalOrCreateCopy(sourcePath) {
+    if (!job.outputDir) return applyReplacementEdit(sourcePath);
+
+    const parsed = path.parse(sourcePath);
+    const outputPath = await reserveAvailableOutputPath(job.outputDir, parsed.name, parsed.ext);
+    const reservationKey = path.resolve(outputPath).toLowerCase();
+    let workingCopy = siblingTempFile(outputPath, 'edit');
+
+    try {
+      await fsp.copyFile(sourcePath, workingCopy);
+      const result = await applyReplacementEdit(workingCopy);
+      if (!result.success) return result;
+
+      await verifyAudioFile(workingCopy);
+      try {
+        await fsp.access(outputPath);
+        throw new Error(`Destination file appeared while processing: ${outputPath}`);
+      } catch (error) {
+        if (error.code !== 'ENOENT') throw error;
+      }
+      await fsp.rename(workingCopy, outputPath);
+      workingCopy = null;
+      return { success: true, outputPath, message: `Saved edited copy to ${outputPath}` };
+    } finally {
+      reservedOutputPaths.delete(reservationKey);
+      if (workingCopy) {
+        try { await fsp.unlink(workingCopy); } catch {}
+      }
+    }
+  }
+
   async function worker() {
     while (index < job.files.length) {
       const currentIndex = index++;
@@ -1007,6 +1060,7 @@ async function startJobProcessing(job) {
 
       let status = 'success';
       let message = null;
+      let outputPath = null;
 
       try {
         if (job.jobType === 'convert') {
@@ -1021,21 +1075,10 @@ async function startJobProcessing(job) {
           status = result.success ? 'success' : 'error';
           message = result.message;
         } else {
-          const ext = path.extname(filePath).toLowerCase();
-
-          if (ext === '.wav' || ext === '.wave') {
-            const result = await replaceCoverWithWavRIFF(filePath, job.imageBuffer, job.imageMime, job.metadataOptions);
-            status = result.success ? 'success' : 'error';
-            message = result.message;
-          } else if (ext === '.mp3') {
-            const result = await replaceCoverWithID3(filePath, job.imageBuffer, job.imageMime, job.metadataOptions);
-            status = result.success ? 'success' : 'error';
-            message = result.message;
-          } else {
-            const result = await replaceCoverWithFFmpeg(filePath, job.coverTempPath, job.metadataOptions);
-            status = result.success ? 'success' : 'error';
-            message = result.message;
-          }
+          const result = await editOriginalOrCreateCopy(filePath);
+          status = result.success ? 'success' : 'error';
+          message = result.message;
+          if (result.outputPath) outputPath = result.outputPath;
         }
       } catch (err) {
         status = 'error';
@@ -1047,7 +1090,7 @@ async function startJobProcessing(job) {
       else if (status === 'error') job.errorCount++;
       else job.skippedCount++;
 
-      const resultItem = { path: filePath, status, message };
+      const resultItem = { path: filePath, outputPath, status, message };
       job.results.push(resultItem);
 
       broadcast('progress', {

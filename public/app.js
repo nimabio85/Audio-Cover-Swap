@@ -15,7 +15,7 @@
     selectedNonAudioFiles: new Set(),
     coverImageFile: null,
     metadataMode: 'set',
-    browseTarget: 'scan', // 'scan' | 'convert_output'
+    browseTarget: 'scan', // 'scan' | 'replace_output' | 'convert_output'
     isScanning: false,
     isReplacing: false,
   };
@@ -69,6 +69,9 @@
     filesList: $('#filesList'),
     btnSelectAll: $('#btnSelectAll'),
     btnDeselectAll: $('#btnDeselectAll'),
+    saveEditedCopiesCheckbox: $('#saveEditedCopiesCheckbox'),
+    replaceOutputDirInput: $('#replaceOutputDirInput'),
+    btnBrowseReplaceDir: $('#btnBrowseReplaceDir'),
     selectedCount: $('#selectedCount'),
     writableCount: $('#writableCount'),
     btnReplace: $('#btnReplace'),
@@ -156,7 +159,9 @@
     state.browseTarget = targetMode;
     els.folderBrowser.style.display = 'block';
     let startPath = 'C:\\';
-    if (targetMode === 'convert_output') {
+    if (targetMode === 'replace_output') {
+      startPath = els.replaceOutputDirInput.value.trim() || els.folderPathInput.value.trim() || 'C:\\';
+    } else if (targetMode === 'convert_output') {
       startPath = els.convertOutputDirInput.value.trim() || els.folderPathInput.value.trim() || 'C:\\';
     } else {
       startPath = els.folderPathInput.value.trim() || 'C:\\';
@@ -229,7 +234,10 @@
 
   function selectCurrentFolder() {
     if (state.currentBrowsePath) {
-      if (state.browseTarget === 'convert_output') {
+      if (state.browseTarget === 'replace_output') {
+        els.replaceOutputDirInput.value = state.currentBrowsePath;
+        updateSelectionCount();
+      } else if (state.browseTarget === 'convert_output') {
         els.convertOutputDirInput.value = state.currentBrowsePath;
         updateNonAudioSelectionCount();
       } else {
@@ -301,6 +309,10 @@
       const defaultOutDir = dirPath + (dirPath.includes('/') ? '/' : '\\') + 'Converted Audio';
       if (!els.convertOutputDirInput.value.trim() || els.convertOutputDirInput.value.endsWith('Converted Audio')) {
         els.convertOutputDirInput.value = defaultOutDir;
+      }
+      const defaultReplaceDir = dirPath + (dirPath.includes('/') ? '/' : '\\') + 'Replaced Audio';
+      if (!els.replaceOutputDirInput.value.trim() || els.replaceOutputDirInput.value.endsWith('Replaced Audio')) {
+        els.replaceOutputDirInput.value = defaultReplaceDir;
       }
 
       renderFilesList();
@@ -475,7 +487,8 @@
       ? `${compatible} compatible • ${skipped} will be skipped`
       : `${compatible} compatible`;
 
-    const canProceed = compatible > 0 && (state.coverImageFile !== null || hasMeta);
+    const hasReplaceDestination = !els.saveEditedCopiesCheckbox.checked || els.replaceOutputDirInput.value.trim() !== '';
+    const canProceed = compatible > 0 && (state.coverImageFile !== null || hasMeta) && hasReplaceDestination;
     els.btnReplace.disabled = !canProceed;
 
     if (state.coverImageFile && hasMeta) {
@@ -579,6 +592,12 @@
       showToast('None of the selected formats support this edit. Convert them first.', 'error');
       return;
     }
+    const saveCopies = els.saveEditedCopiesCheckbox.checked;
+    const replacementOutputDir = els.replaceOutputDirInput.value.trim();
+    if (saveCopies && !replacementOutputDir) {
+      showToast('Select a separate folder for the replaced copies', 'error');
+      return;
+    }
     const skippedCount = state.selectedFiles.size - eligiblePaths.length;
     if (skippedCount > 0) {
       showToast(`${skippedCount} incompatible file${skippedCount === 1 ? '' : 's'} skipped`, 'info');
@@ -607,6 +626,7 @@
         formData.append('coverImage', state.coverImageFile);
       }
       formData.append('files', JSON.stringify(eligiblePaths));
+      if (saveCopies) formData.append('outputDir', replacementOutputDir);
       const metaPayload = getMetadataPayload();
       if (metaPayload) {
         formData.append('metadataOptions', JSON.stringify(metaPayload));
@@ -642,13 +662,14 @@
         if (data.item) {
           const div = document.createElement('div');
           div.className = `result-item ${data.item.status}`;
-          const name = data.item.path.split(/[/\\]/).pop();
+          const displayPath = data.item.outputPath || data.item.path;
+          const name = displayPath.split(/[/\\]/).pop();
           const icon =
             data.item.status === 'success'
               ? '<svg class="result-icon" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>'
               : '<svg class="result-icon" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>';
 
-          div.innerHTML = `${icon}<span class="result-name" title="${escapeHtml(data.item.path)}">${escapeHtml(name)}</span>`;
+          div.innerHTML = `${icon}<span class="result-name" title="${escapeHtml(displayPath)}">${escapeHtml(name)}</span>`;
           if (data.item.message) div.title = data.item.message;
 
           els.progressResults.prepend(div);
@@ -1004,6 +1025,15 @@
     els.convertFormatSelect.addEventListener('change', updateNonAudioSelectionCount);
     els.convertBitrateSelect.addEventListener('change', updateNonAudioSelectionCount);
     els.btnStartConvert.addEventListener('click', startNonAudioConversion);
+
+    els.saveEditedCopiesCheckbox.addEventListener('change', () => {
+      const enabled = els.saveEditedCopiesCheckbox.checked;
+      els.replaceOutputDirInput.disabled = !enabled;
+      els.btnBrowseReplaceDir.disabled = !enabled;
+      updateSelectionCount();
+    });
+    els.replaceOutputDirInput.addEventListener('input', updateSelectionCount);
+    els.btnBrowseReplaceDir.addEventListener('click', () => openBrowser('replace_output'));
 
     // Enter key on path input triggers scan
     els.folderPathInput.addEventListener('keydown', (e) => {

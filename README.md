@@ -18,6 +18,11 @@ Conversions are also fully decoded before they are finalized, and existing
 destination files are never overwritten. A corrupt or unsupported source is
 reported as an error and left unchanged.
 
+For cover and metadata replacement, enable **Keep originals and save replaced
+files in a separate folder** to choose a different destination. CoverSwap
+edits verified working copies, leaves the source files byte-for-byte unchanged,
+and adds `(1)`, `(2)`, and so on when destination names already exist.
+
 No program can promise support for literally every audio codec or repair an
 already-damaged source. The table below is the tested release contract.
 
