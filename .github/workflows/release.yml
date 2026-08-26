@@ -25,12 +25,16 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $tag = "${{ github.ref_name }}"
-          $assets = (Get-ChildItem release/*.exe).FullName
+          $assets = @(
+            Get-ChildItem release/*.exe
+            Get-ChildItem release/*.yml
+            Get-ChildItem release/*.blockmap
+          ).FullName
           gh release view $tag | Out-Null
           if ($LASTEXITCODE -eq 0) {
             gh release upload $tag $assets --clobber
-            gh release edit $tag --title "CoverSwap 1.0.0"
+            gh release edit $tag --title "CoverSwap ${{ github.ref_name }}"
           } else {
-            gh release create $tag $assets --title "CoverSwap 1.0.0" --generate-notes --verify-tag
+            gh release create $tag $assets --title "CoverSwap ${{ github.ref_name }}" --generate-notes --verify-tag
           }
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

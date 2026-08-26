@@ -1,6 +1,6 @@
 {
   "name": "file-cover-replacer",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "A safe Windows desktop app for replacing audio cover art, editing tags, and converting media to audio.",
   "main": "electron-main.js",
   "scripts": {
@@ -16,11 +16,13 @@
   "license": "MIT",
   "type": "commonjs",
   "dependencies": {
+    "electron-updater": "^6.8.9",
     "express": "^5.2.1",
     "ffmpeg-static": "^5.3.0",
     "multer": "^2.2.0",
     "music-metadata": "^11.14.0",
     "node-id3": "^0.2.9",
+    "semver": "^7.8.5",
     "sharp": "^0.35.3"
   },
   "allowScripts": {
@@ -33,6 +35,14 @@
   "build": {
     "appId": "com.coverswap.desktop",
     "productName": "CoverSwap",
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "nimabio85",
+        "repo": "Audio-Cover-Swap",
+        "releaseType": "release"
+      }
+    ],
     "directories": {
       "output": "release"
     },
@@ -49,7 +59,10 @@
     ],
     "win": {
       "icon": "build/icon.png",
-      "target": ["nsis", "portable"]
+      "target": [
+        "nsis",
+        "portable"
+      ]
     },
     "nsis": {
       "artifactName": "CoverSwap-Setup-${version}-${arch}.${ext}",

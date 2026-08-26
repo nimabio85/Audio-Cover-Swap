@@ -42,6 +42,15 @@ Releases page. Windows 10 and Windows 11 (64-bit) are the supported targets.
 
 The downloadable app bundles FFmpeg and does not require Node.js.
 
+## Updates
+
+The installed edition checks GitHub Releases shortly after launch and every
+four hours. It asks before downloading, shows download progress in the Windows
+taskbar, and installs after CoverSwap restarts or closes. The portable edition
+notifies when a newer version exists and opens the release page for a manual
+portable download because a running portable executable cannot safely replace
+itself.
+
 ## Development
 
 Requirements: Node.js 22 or newer and Windows.
