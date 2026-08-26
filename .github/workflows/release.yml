@@ -12,8 +12,8 @@ jobs:
   windows:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
@@ -23,4 +23,14 @@ jobs:
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "${{ github.ref_name }}" (Get-ChildItem release/*.exe).FullName --generate-notes --verify-tag
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $assets = (Get-ChildItem release/*.exe).FullName
+          gh release view $tag | Out-Null
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload $tag $assets --clobber
+            gh release edit $tag --title "CoverSwap 1.0.0"
+          } else {
+            gh release create $tag $assets --title "CoverSwap 1.0.0" --generate-notes --verify-tag
+          }
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
