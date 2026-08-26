@@ -15,6 +15,7 @@
     selectedNonAudioFiles: new Set(),
     coverImageFile: null,
     metadataMode: 'set',
+    workspaceMode: 'edit',
     browseTarget: 'scan', // 'scan' | 'replace_output' | 'convert_output'
     isScanning: false,
     isReplacing: false,
@@ -87,6 +88,14 @@
     nonAudioSelectedCount: $('#nonAudioSelectedCount'),
     btnStartConvert: $('#btnStartConvert'),
     headerStatus: $('#headerStatus'),
+    btnModeEdit: $('#btnModeEdit'),
+    btnModeConvert: $('#btnModeConvert'),
+    editWorkspace: $('#editWorkspace'),
+    convertWorkspace: $('#convertWorkspace'),
+    workflowFolder: $('#workflowFolder'),
+    workflowCustomize: $('#workflowCustomize'),
+    workflowSave: $('#workflowSave'),
+    actionBar: $('#actionBar'),
     updateNotification: $('#updateNotification'),
     updateNotificationText: $('#updateNotificationText'),
     progressModal: $('#progressModal'),
@@ -102,6 +111,8 @@
     btnCloseModal: $('#btnCloseModal'),
   };
 
+  let lastFocusedElement = null;
+
   // --- Toast System ---
   let toastContainer = document.createElement('div');
   toastContainer.className = 'toast-container';
@@ -111,6 +122,7 @@
     const toast = document.createElement('div');
     toast.className = `toast ${type}`;
     toast.textContent = message;
+    toast.setAttribute('role', type === 'error' ? 'alert' : 'status');
     toastContainer.appendChild(toast);
 
     setTimeout(() => {
@@ -136,6 +148,57 @@
     const c = colors[color] || colors.emerald;
     dot.style.background = c.bg;
     dot.style.boxShadow = `0 0 8px ${c.shadow}`;
+  }
+
+  function updateWorkflowProgress(readyToFinish = false) {
+    const scanned = document.body.classList.contains('has-scanned');
+    [els.workflowFolder, els.workflowCustomize, els.workflowSave].forEach((step) => {
+      step.classList.remove('current', 'complete');
+    });
+
+    const customizeLabel = els.workflowCustomize.querySelector('strong');
+    const saveLabel = els.workflowSave.querySelector('strong');
+    customizeLabel.textContent = state.workspaceMode === 'edit' ? 'Customize' : 'Choose output';
+    saveLabel.textContent = state.workspaceMode === 'edit' ? 'Review & save' : 'Convert';
+
+    if (!scanned) {
+      els.workflowFolder.classList.add('current');
+      return;
+    }
+
+    els.workflowFolder.classList.add('complete');
+    if (readyToFinish) {
+      els.workflowCustomize.classList.add('complete');
+      els.workflowSave.classList.add('current');
+    } else {
+      els.workflowCustomize.classList.add('current');
+    }
+  }
+
+  function setWorkspaceMode(mode) {
+    state.workspaceMode = mode;
+    const editing = mode === 'edit';
+    document.body.dataset.mode = mode;
+    els.btnModeEdit.classList.toggle('active', editing);
+    els.btnModeConvert.classList.toggle('active', !editing);
+    els.btnModeEdit.setAttribute('aria-pressed', String(editing));
+    els.btnModeConvert.setAttribute('aria-pressed', String(!editing));
+    els.editWorkspace.hidden = !editing;
+    els.convertWorkspace.hidden = editing;
+    updateWorkflowProgress(editing ? !els.btnReplace.disabled : !els.btnStartConvert.disabled);
+  }
+
+  function showProgressModal() {
+    lastFocusedElement = document.activeElement;
+    els.progressModal.style.display = 'flex';
+    els.progressModal.setAttribute('aria-busy', 'true');
+    requestAnimationFrame(() => els.progressModal.querySelector('.modal').focus());
+  }
+
+  function finishProgressModal() {
+    els.modalFooter.style.display = 'flex';
+    els.progressModal.setAttribute('aria-busy', 'false');
+    requestAnimationFrame(() => els.btnCloseModal.focus());
   }
 
   function renderUpdateStatus(status = { state: 'idle' }) {
@@ -242,14 +305,15 @@
 
     els.browserList.innerHTML = '';
     for (const item of data.items) {
-      const div = document.createElement('div');
-      div.className = 'browser-item';
-      div.innerHTML = `
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'browser-item';
+      button.innerHTML = `
         <svg viewBox="0 0 20 20" fill="currentColor"><path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z"/></svg>
         <span>${escapeHtml(item.name)}</span>
       `;
-      div.addEventListener('click', () => browseTo(item.path));
-      els.browserList.appendChild(div);
+      button.addEventListener('click', () => browseTo(item.path));
+      els.browserList.appendChild(button);
     }
   }
 
@@ -261,14 +325,15 @@
     els.browserList.innerHTML = '';
 
     for (const drive of data.drives) {
-      const div = document.createElement('div');
-      div.className = 'browser-item';
-      div.innerHTML = `
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'browser-item';
+      button.innerHTML = `
         <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 5a2 2 0 012-2h10a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V5zm14 1H3v6h14V6z" clip-rule="evenodd"/></svg>
         <span>${drive.name}</span>
       `;
-      div.addEventListener('click', () => browseTo(drive.path));
-      els.browserList.appendChild(div);
+      button.addEventListener('click', () => browseTo(drive.path));
+      els.browserList.appendChild(button);
     }
   }
 
@@ -352,6 +417,10 @@
       els.stepMetadata.classList.remove('disabled');
       els.stepConvert.classList.remove('disabled');
       els.stepConvert.classList.add('active');
+      document.body.classList.add('has-scanned');
+      els.editWorkspace.classList.add('has-files');
+      els.convertWorkspace.classList.add('has-files');
+      updateWorkflowProgress(false);
 
       // Default output folder for converted audio
       const defaultOutDir = dirPath + (dirPath.includes('/') ? '/' : '\\') + 'Converted Audio';
@@ -386,8 +455,9 @@
         showToast(`Skipped non-audio: ${extList}`, 'info');
       }
 
-      setStatus(`${data.totalAudioFiles} files found`, 'emerald');
-      showToast(`Found ${data.totalAudioFiles} audio files`, 'success');
+      const audioLabel = `${data.totalAudioFiles} audio file${data.totalAudioFiles === 1 ? '' : 's'}`;
+      setStatus(`${audioLabel} found`, 'emerald');
+      showToast(`Found ${audioLabel}`, 'success');
     } catch (err) {
       showToast('Failed to scan: ' + err.message, 'error');
       setStatus('Error', 'red');
@@ -415,12 +485,15 @@
       const isSelected = state.selectedFiles.has(file.path);
       item.className = `file-item${isSelected ? ' selected' : ''}`;
       item.dataset.path = file.path;
+      item.setAttribute('role', 'checkbox');
+      item.setAttribute('tabindex', '0');
+      item.setAttribute('aria-checked', String(isSelected));
 
       const ext = file.ext.replace('.', '').toUpperCase();
       const badgeClass = ext === 'MP3' ? 'mp3' : ext === 'FLAC' ? 'flac' : 'other';
 
       const coverHtml = file.hasCover
-        ? `<img src="/api/cover?path=${encodeURIComponent(file.path)}" alt="cover" loading="lazy" />`
+        ? `<img src="/api/cover?path=${encodeURIComponent(file.path)}" alt="" loading="lazy" />`
         : `<svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clip-rule="evenodd"/></svg>`;
 
       const sizeStr = file.size ? formatSize(file.size) : '';
@@ -442,6 +515,12 @@
       `;
 
       item.addEventListener('click', () => toggleFileSelection(file.path, item));
+      item.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          toggleFileSelection(file.path, item);
+        }
+      });
       els.filesList.appendChild(item);
     }
   }
@@ -450,9 +529,11 @@
     if (state.selectedFiles.has(filePath)) {
       state.selectedFiles.delete(filePath);
       element.classList.remove('selected');
+      element.setAttribute('aria-checked', 'false');
     } else {
       state.selectedFiles.add(filePath);
       element.classList.add('selected');
+      element.setAttribute('aria-checked', 'true');
     }
     updateSelectionCount();
   }
@@ -462,13 +543,19 @@
     for (const file of state.scannedFiles) {
       state.selectedFiles.add(file.path);
     }
-    $$('.file-item').forEach((el) => el.classList.add('selected'));
+    els.filesList.querySelectorAll('.file-item').forEach((el) => {
+      el.classList.add('selected');
+      el.setAttribute('aria-checked', 'true');
+    });
     updateSelectionCount();
   }
 
   function deselectAll() {
     state.selectedFiles.clear();
-    $$('.file-item').forEach((el) => el.classList.remove('selected'));
+    els.filesList.querySelectorAll('.file-item').forEach((el) => {
+      el.classList.remove('selected');
+      el.setAttribute('aria-checked', 'false');
+    });
     updateSelectionCount();
   }
 
@@ -538,6 +625,7 @@
     const hasReplaceDestination = !els.saveEditedCopiesCheckbox.checked || els.replaceOutputDirInput.value.trim() !== '';
     const canProceed = compatible > 0 && (state.coverImageFile !== null || hasMeta) && hasReplaceDestination;
     els.btnReplace.disabled = !canProceed;
+    if (state.workspaceMode === 'edit') updateWorkflowProgress(canProceed);
 
     if (state.coverImageFile && hasMeta) {
       els.btnReplace.innerHTML = '<svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd"/></svg> Replace Covers & Metadata';
@@ -555,6 +643,13 @@
     zone.addEventListener('click', (e) => {
       if (e.target.closest('.btn-remove-image')) return;
       els.imageFileInput.click();
+    });
+
+    zone.addEventListener('keydown', (e) => {
+      if ((e.key === 'Enter' || e.key === ' ') && !e.target.closest('.btn-remove-image')) {
+        e.preventDefault();
+        els.imageFileInput.click();
+      }
     });
 
     zone.addEventListener('dragover', (e) => {
@@ -655,7 +750,7 @@
     setStatus('Replacing...', 'amber');
 
     // Reset modal state
-    els.progressModal.style.display = 'flex';
+    showProgressModal();
     els.modalTitle.textContent = (state.coverImageFile && hasMeta) ? 'Replacing Covers & Metadata...' : hasMeta ? 'Updating Text & Metadata...' : 'Replacing Cover Art...';
     els.progressBar.style.width = '0%';
     els.progressBar.classList.remove('indeterminate');
@@ -690,7 +785,7 @@
         els.progressText.textContent = 'Error: ' + jobRes.error;
         setStatus('Error', 'red');
         showToast(jobRes.error, 'error');
-        els.modalFooter.style.display = 'flex';
+        finishProgressModal();
         state.isReplacing = false;
         return;
       }
@@ -738,14 +833,14 @@
 
         setStatus('Done', 'emerald');
         showToast(`Successfully updated ${data.summary.success} files!`, 'success');
-        els.modalFooter.style.display = 'flex';
+        finishProgressModal();
         state.isReplacing = false;
       });
 
       evtSource.onerror = (err) => {
         evtSource.close();
         els.progressText.textContent = 'Connection closed or lost.';
-        els.modalFooter.style.display = 'flex';
+        finishProgressModal();
         state.isReplacing = false;
       };
 
@@ -754,13 +849,15 @@
       els.progressText.textContent = 'Error: ' + err.message;
       setStatus('Error', 'red');
       showToast('Failed: ' + err.message, 'error');
-      els.modalFooter.style.display = 'flex';
+      finishProgressModal();
       state.isReplacing = false;
     }
   }
 
   function closeModal() {
     els.progressModal.style.display = 'none';
+    els.progressModal.setAttribute('aria-busy', 'false');
+    if (lastFocusedElement && document.contains(lastFocusedElement)) lastFocusedElement.focus();
     // Re-scan to update covers
     if (els.folderPathInput.value.trim()) {
       scanFiles();
@@ -789,6 +886,8 @@
       state.metadataMode = 'set';
       els.btnTabSet.classList.add('active');
       els.btnTabReplace.classList.remove('active');
+      els.btnTabSet.setAttribute('aria-selected', 'true');
+      els.btnTabReplace.setAttribute('aria-selected', 'false');
       els.metaPaneSet.style.display = 'block';
       els.metaPaneReplace.style.display = 'none';
       updateSelectionCount();
@@ -798,6 +897,8 @@
       state.metadataMode = 'replace';
       els.btnTabReplace.classList.add('active');
       els.btnTabSet.classList.remove('active');
+      els.btnTabReplace.setAttribute('aria-selected', 'true');
+      els.btnTabSet.setAttribute('aria-selected', 'false');
       els.metaPaneReplace.style.display = 'block';
       els.metaPaneSet.style.display = 'none';
       updateSelectionCount();
@@ -870,6 +971,9 @@
       const isSelected = state.selectedNonAudioFiles.has(file.path);
       item.className = `file-item${isSelected ? ' selected' : ''}`;
       item.dataset.path = file.path;
+      item.setAttribute('role', 'checkbox');
+      item.setAttribute('tabindex', '0');
+      item.setAttribute('aria-checked', String(isSelected));
 
       const ext = file.ext.replace('.', '').toUpperCase() || 'FILE';
       const badgeClass = file.isMedia ? 'video' : 'other';
@@ -894,6 +998,12 @@
       `;
 
       item.addEventListener('click', () => toggleNonAudioFileSelection(file.path, item));
+      item.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          toggleNonAudioFileSelection(file.path, item);
+        }
+      });
       els.nonAudioFilesList.appendChild(item);
     }
   }
@@ -902,9 +1012,11 @@
     if (state.selectedNonAudioFiles.has(filePath)) {
       state.selectedNonAudioFiles.delete(filePath);
       element.classList.remove('selected');
+      element.setAttribute('aria-checked', 'false');
     } else {
       state.selectedNonAudioFiles.add(filePath);
       element.classList.add('selected');
+      element.setAttribute('aria-checked', 'true');
     }
     updateNonAudioSelectionCount();
   }
@@ -914,13 +1026,19 @@
     for (const file of state.scannedNonAudioFiles) {
       state.selectedNonAudioFiles.add(file.path);
     }
-    els.nonAudioFilesList.querySelectorAll('.file-item').forEach((el) => el.classList.add('selected'));
+    els.nonAudioFilesList.querySelectorAll('.file-item').forEach((el) => {
+      el.classList.add('selected');
+      el.setAttribute('aria-checked', 'true');
+    });
     updateNonAudioSelectionCount();
   }
 
   function deselectAllNonAudio() {
     state.selectedNonAudioFiles.clear();
-    els.nonAudioFilesList.querySelectorAll('.file-item').forEach((el) => el.classList.remove('selected'));
+    els.nonAudioFilesList.querySelectorAll('.file-item').forEach((el) => {
+      el.classList.remove('selected');
+      el.setAttribute('aria-checked', 'false');
+    });
     updateNonAudioSelectionCount();
   }
 
@@ -930,6 +1048,7 @@
 
     els.nonAudioSelectedCount.textContent = `${count} media file${count !== 1 ? 's' : ''} selected`;
     els.btnStartConvert.disabled = count === 0 || !hasOutDir;
+    if (state.workspaceMode === 'convert') updateWorkflowProgress(!els.btnStartConvert.disabled);
   }
 
   async function startNonAudioConversion() {
@@ -948,7 +1067,7 @@
     state.isReplacing = true;
     setStatus('Converting...', 'violet');
 
-    els.progressModal.style.display = 'flex';
+    showProgressModal();
     els.modalTitle.textContent = `Converting ${count} Files to Audio...`;
     els.progressBar.style.width = '0%';
     els.progressBar.classList.remove('indeterminate');
@@ -986,7 +1105,7 @@
         els.progressText.textContent = 'Error: ' + jobRes.error;
         setStatus('Error', 'red');
         showToast(jobRes.error, 'error');
-        els.modalFooter.style.display = 'flex';
+        finishProgressModal();
         state.isReplacing = false;
         return;
       }
@@ -1032,14 +1151,14 @@
 
         setStatus('Converted', 'emerald');
         showToast(`Successfully converted ${data.summary.success} files into target folder!`, 'success');
-        els.modalFooter.style.display = 'flex';
+        finishProgressModal();
         state.isReplacing = false;
       });
 
       evtSource.onerror = () => {
         evtSource.close();
         els.progressText.textContent = 'Connection closed or lost.';
-        els.modalFooter.style.display = 'flex';
+        finishProgressModal();
         state.isReplacing = false;
       };
 
@@ -1048,13 +1167,15 @@
       els.progressText.textContent = 'Error: ' + err.message;
       setStatus('Error', 'red');
       showToast('Failed: ' + err.message, 'error');
-      els.modalFooter.style.display = 'flex';
+      finishProgressModal();
       state.isReplacing = false;
     }
   }
 
   // --- Event Bindings ---
   function init() {
+    els.btnModeEdit.addEventListener('click', () => setWorkspaceMode('edit'));
+    els.btnModeConvert.addEventListener('click', () => setWorkspaceMode('convert'));
     els.btnBrowse.addEventListener('click', () => openBrowser('scan'));
     els.btnCancelBrowse.addEventListener('click', closeBrowser);
     els.btnDrives.addEventListener('click', showDrives);
@@ -1088,9 +1209,33 @@
       if (e.key === 'Enter') scanFiles();
     });
 
+    els.progressModal.addEventListener('keydown', (event) => {
+      const focusable = [...els.progressModal.querySelectorAll('button:not([disabled]), [tabindex="0"]')]
+        .filter((element) => element.offsetParent !== null);
+      if (event.key === 'Escape' && els.modalFooter.style.display !== 'none') {
+        closeModal();
+      } else if (event.key === 'Tab') {
+        if (focusable.length === 0) {
+          event.preventDefault();
+          els.progressModal.querySelector('.modal').focus();
+          return;
+        }
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault();
+          last.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault();
+          first.focus();
+        }
+      }
+    });
+
     setupImageDropZone();
     setupMetadataSection();
     setupUpdateNotifications().catch(() => {});
+    setWorkspaceMode('edit');
   }
 
   // Boot
