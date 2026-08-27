@@ -15,8 +15,46 @@
   <!-- Background particles -->
   <div class="bg-particles" id="bgParticles"></div>
 
-  <!-- App Shell -->
-  <div class="app-shell">
+  <div class="workspace-drop-overlay" id="workspaceDropOverlay" aria-hidden="true">
+    <div class="workspace-drop-card" role="status">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5M5 14v5h14v-5"/></svg>
+      <strong>Drop music here</strong>
+      <span>Folders and supported audio or video files</span>
+    </div>
+  </div>
+
+  <div class="app-frame">
+    <aside class="app-sidebar" aria-label="App menu">
+      <div class="sidebar-heading">
+        <span class="sidebar-heading-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+        </span>
+        <span><strong>App menu</strong><small>Support & updates</small></span>
+      </div>
+
+      <nav class="sidebar-nav" aria-label="Support and updates">
+        <button class="sidebar-action" id="btnSidebarUpdate" type="button">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 10-2.34 5.66M20 11V5m0 6h-6"/></svg>
+          <span><strong>Check for updates</strong><small id="sidebarUpdateStatus" aria-live="polite">Ready to check</small></span>
+        </button>
+        <a class="sidebar-action" href="https://github.com/nimabio85/Audio-Cover-Swap/issues/new?labels=bug&amp;title=%5BBug%5D%20" target="_blank" rel="noopener noreferrer">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 9h6M9 13h6m-3 8a9 9 0 110-18 9 9 0 010 18zM12 3V1m0 22v-2M3.5 5.5L2 4m20 16l-1.5-1.5M3 12H1m22 0h-2"/></svg>
+          <span><strong>Report a bug</strong><small>Open a GitHub issue</small></span>
+        </a>
+        <a class="sidebar-action" href="https://github.com/nimabio85/Audio-Cover-Swap#readme" target="_blank" rel="noopener noreferrer">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5.5A3.5 3.5 0 017.5 2H11v17H7.5A3.5 3.5 0 004 22V5.5zM20 5.5A3.5 3.5 0 0016.5 2H13v17h3.5A3.5 3.5 0 0120 22V5.5z"/></svg>
+          <span><strong>Help & guide</strong><small>Learn how CoverSwap works</small></span>
+        </a>
+      </nav>
+
+      <footer class="sidebar-footer">
+        <span id="sidebarVersion">Version —</span>
+        <span>Created by <a href="https://github.com/nimabio85" target="_blank" rel="noopener noreferrer">nimabio85</a></span>
+      </footer>
+    </aside>
+
+    <!-- App Shell -->
+    <div class="app-shell">
     <!-- Header -->
     <header class="app-header">
       <div class="logo">
@@ -114,6 +152,10 @@
               <span class="checkmark"></span>
               Include music in subfolders
             </label>
+            <p class="folder-drop-hint">
+              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 13V3m0 0L6.5 6.5M10 3l3.5 3.5M3 12v5h14v-5"/></svg>
+              Or drop folders and media files anywhere in the app
+            </p>
           </div>
 
           <!-- Folder Browser Modal -->
@@ -453,6 +495,7 @@
           <button class="btn btn-primary" id="btnCloseModal">Done</button>
         </div>
       </div>
+    </div>
     </div>
   </div>
 

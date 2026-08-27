@@ -1,6 +1,6 @@
 {
   "name": "file-cover-replacer",
-  "version": "1.6.2",
+  "version": "1.6.3",
   "description": "A safe Windows desktop app for replacing audio cover art, editing tags, and converting media to audio.",
   "main": "electron-main.js",
   "scripts": {
@@ -12,7 +12,7 @@
     "pack": "electron-builder --dir"
   },
   "keywords": [],
-  "author": "",
+  "author": "nimabio85",
   "license": "MIT",
   "type": "commonjs",
   "dependencies": {

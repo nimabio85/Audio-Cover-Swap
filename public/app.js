@@ -98,6 +98,10 @@
     actionBar: $('#actionBar'),
     updateNotification: $('#updateNotification'),
     updateNotificationText: $('#updateNotificationText'),
+    btnSidebarUpdate: $('#btnSidebarUpdate'),
+    sidebarUpdateStatus: $('#sidebarUpdateStatus'),
+    sidebarVersion: $('#sidebarVersion'),
+    workspaceDropOverlay: $('#workspaceDropOverlay'),
     progressModal: $('#progressModal'),
     modalTitle: $('#modalTitle'),
     progressBar: $('#progressBar'),
@@ -209,6 +213,19 @@
     button.disabled = false;
     button.dataset.state = status.state;
 
+    const sidebarLabels = {
+      idle: 'You are up to date',
+      checking: 'Checking GitHub…',
+      available: `Version ${status.version || ''} found`,
+      downloading: `Downloading ${status.percent || 0}%`,
+      downloaded: `Version ${status.version || ''} ready`,
+      'portable-available': `Version ${status.version || ''} available`,
+      error: 'Could not check — retry',
+    };
+    els.sidebarUpdateStatus.textContent = sidebarLabels[status.state] || 'Ready to check';
+    els.btnSidebarUpdate.dataset.state = status.state;
+    els.btnSidebarUpdate.disabled = ['checking', 'available', 'downloading'].includes(status.state);
+
     if (status.state === 'idle' || status.state === 'checking') {
       button.hidden = true;
       return;
@@ -237,16 +254,42 @@
 
   async function setupUpdateNotifications() {
     const updates = window.coverSwapUpdates;
-    if (!updates) return;
+    if (!updates) {
+      els.sidebarUpdateStatus.textContent = 'Available in desktop app';
+      els.btnSidebarUpdate.disabled = true;
+      return;
+    }
 
     renderUpdateStatus(await updates.getStatus());
     updates.onStatus(renderUpdateStatus);
+    els.btnSidebarUpdate.addEventListener('click', () => {
+      const action = els.btnSidebarUpdate.dataset.state;
+      if (action === 'downloaded') {
+        updates.install();
+        return;
+      }
+      if (action === 'portable-available') {
+        updates.openRelease();
+        return;
+      }
+      renderUpdateStatus({ state: 'checking' });
+      updates.check();
+    });
     els.updateNotification.addEventListener('click', () => {
       const action = els.updateNotification.dataset.state;
       if (action === 'downloaded') updates.install();
       else if (action === 'portable-available') updates.openRelease();
       else if (action === 'error') updates.check();
     });
+  }
+
+  async function setupAppInfo() {
+    try {
+      const info = await api('/app-info');
+      if (info.version) els.sidebarVersion.textContent = `Version ${info.version}`;
+    } catch {
+      els.sidebarVersion.textContent = 'Version unavailable';
+    }
   }
 
   // --- API Helpers ---
@@ -394,9 +437,9 @@
   }
 
   // --- Scan Files ---
-  async function scanFiles() {
+  async function scanFiles({ paths = null } = {}) {
     const dirPath = els.folderPathInput.value.trim();
-    if (!dirPath) {
+    if (!paths && !dirPath) {
       showToast('Please enter a folder path', 'error');
       return;
     }
@@ -415,12 +458,11 @@
     `;
 
     try {
-      const data = await api('/scan', {
+      const data = await api(paths ? '/scan-paths' : '/scan', {
         method: 'POST',
-        body: {
-          dirPath,
-          recursive: els.recursiveCheckbox.checked,
-        },
+        body: paths
+          ? { paths, recursive: els.recursiveCheckbox.checked }
+          : { dirPath, recursive: els.recursiveCheckbox.checked },
       });
 
       if (data.error) {
@@ -431,6 +473,8 @@
         return;
       }
 
+      const outputBasePath = data.path || dirPath;
+      els.folderPathInput.value = outputBasePath;
       state.scannedFiles = data.files;
       state.selectedFiles.clear();
 
@@ -456,11 +500,11 @@
       updateWorkflowProgress(false);
 
       // Default output folder for converted audio
-      const defaultOutDir = dirPath + (dirPath.includes('/') ? '/' : '\\') + 'Converted Audio';
+      const defaultOutDir = outputBasePath + (outputBasePath.includes('/') ? '/' : '\\') + 'Converted Audio';
       if (!els.convertOutputDirInput.value.trim() || els.convertOutputDirInput.value.endsWith('Converted Audio')) {
         els.convertOutputDirInput.value = defaultOutDir;
       }
-      const defaultReplaceDir = dirPath + (dirPath.includes('/') ? '/' : '\\') + 'Replaced Audio';
+      const defaultReplaceDir = outputBasePath + (outputBasePath.includes('/') ? '/' : '\\') + 'Replaced Audio';
       if (!els.replaceOutputDirInput.value.trim() || els.replaceOutputDirInput.value.endsWith('Replaced Audio')) {
         els.replaceOutputDirInput.value = defaultReplaceDir;
       }
@@ -687,17 +731,26 @@
       }
     });
 
-    zone.addEventListener('dragover', (e) => {
+    zone.addEventListener('dragenter', (e) => {
       e.preventDefault();
+      e.stopPropagation();
       zone.classList.add('drag-over');
     });
 
-    zone.addEventListener('dragleave', () => {
+    zone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      zone.classList.add('drag-over');
+    });
+
+    zone.addEventListener('dragleave', (e) => {
+      e.stopPropagation();
       zone.classList.remove('drag-over');
     });
 
     zone.addEventListener('drop', (e) => {
       e.preventDefault();
+      e.stopPropagation();
       zone.classList.remove('drag-over');
       const files = e.dataTransfer.files;
       if (files.length > 0) {
@@ -715,6 +768,67 @@
       e.stopPropagation();
       removeImage();
     });
+  }
+
+  function setupWorkspaceDropZone() {
+    const desktop = window.coverSwapDesktop;
+    let dragDepth = 0;
+
+    function hasFiles(event) {
+      return event.dataTransfer && [...event.dataTransfer.types].includes('Files');
+    }
+
+    function hideDropOverlay() {
+      dragDepth = 0;
+      els.workspaceDropOverlay.classList.remove('active');
+      els.workspaceDropOverlay.setAttribute('aria-hidden', 'true');
+    }
+
+    window.addEventListener('dragenter', (event) => {
+      if (!hasFiles(event)) return;
+      event.preventDefault();
+      dragDepth++;
+      els.workspaceDropOverlay.classList.add('active');
+      els.workspaceDropOverlay.setAttribute('aria-hidden', 'false');
+    });
+
+    window.addEventListener('dragover', (event) => {
+      if (!hasFiles(event)) return;
+      event.preventDefault();
+      event.dataTransfer.dropEffect = 'copy';
+    });
+
+    window.addEventListener('dragleave', (event) => {
+      if (!hasFiles(event)) return;
+      dragDepth = Math.max(0, dragDepth - 1);
+      if (dragDepth === 0) hideDropOverlay();
+    });
+
+    window.addEventListener('drop', (event) => {
+      if (!hasFiles(event)) return;
+      event.preventDefault();
+      hideDropOverlay();
+
+      if (!desktop || typeof desktop.getPathForFile !== 'function') {
+        showToast('Folder and file drop is available in the desktop app', 'error');
+        return;
+      }
+
+      const paths = [...event.dataTransfer.files]
+        .map((file) => {
+          try { return desktop.getPathForFile(file); } catch { return ''; }
+        })
+        .filter(Boolean);
+      const uniquePaths = [...new Set(paths)];
+      if (uniquePaths.length === 0) {
+        showToast('No usable files or folders were dropped', 'error');
+        return;
+      }
+
+      scanFiles({ paths: uniquePaths });
+    });
+
+    window.addEventListener('blur', hideDropOverlay);
   }
 
   function handleImageFile(file) {
@@ -1216,7 +1330,7 @@
     els.btnDrives.addEventListener('click', showDrives);
     els.btnParent.addEventListener('click', goParent);
     els.btnSelectFolder.addEventListener('click', selectCurrentFolder);
-    els.btnScan.addEventListener('click', scanFiles);
+    els.btnScan.addEventListener('click', () => scanFiles());
     els.btnSelectAll.addEventListener('click', selectAll);
     els.btnDeselectAll.addEventListener('click', deselectAll);
     els.btnReplace.addEventListener('click', replaceCovers);
@@ -1268,7 +1382,9 @@
     });
 
     setupImageDropZone();
+    setupWorkspaceDropZone();
     setupMetadataSection();
+    setupAppInfo();
     setupUpdateNotifications().catch(() => {});
     setWorkspaceMode('edit');
   }

@@ -14,6 +14,17 @@ let localServer = null;
 let updateStatus = { state: 'idle' };
 let runUpdateCheck = null;
 
+function isAllowedExternalUrl(value) {
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:'
+      && url.hostname === 'github.com'
+      && (url.pathname === '/nimabio85' || url.pathname.startsWith('/nimabio85/'));
+  } catch {
+    return false;
+  }
+}
+
 function publishUpdateStatus(status) {
   updateStatus = { ...updateStatus, ...status };
   if (mainWindow && !mainWindow.isDestroyed()) {
@@ -23,6 +34,7 @@ function publishUpdateStatus(status) {
 
 async function checkPortableUpdate() {
   try {
+    publishUpdateStatus({ state: 'checking' });
     const response = await fetch(LATEST_RELEASE_API, {
       headers: { 'User-Agent': `CoverSwap/${app.getVersion()}` },
       signal: AbortSignal.timeout(15000),
@@ -156,7 +168,7 @@ async function createWindow() {
   });
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    if (url.startsWith('https://')) shell.openExternal(url);
+    if (isAllowedExternalUrl(url)) shell.openExternal(url);
     return { action: 'deny' };
   });
   mainWindow.webContents.on('will-navigate', (event, url) => {

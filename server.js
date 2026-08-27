@@ -8,6 +8,7 @@ const { execFile } = require('child_process');
 const { promisify } = require('util');
 const os = require('os');
 const crypto = require('crypto');
+const packageMetadata = require('./package.json');
 
 const execFileAsync = promisify(execFile);
 
@@ -577,9 +578,15 @@ async function convertFileToAudio(inputPath, outputDir, format = 'mp3', bitrate 
 
 // ──────────────── API ROUTES ────────────────
 
-/**
- * Browse a directory and return its contents
- */
+/** Return non-sensitive application metadata for the sidebar. */
+app.get('/api/app-info', (_req, res) => {
+  res.json({
+    version: packageMetadata.version,
+    creator: packageMetadata.author || 'nimabio85',
+  });
+});
+
+/** Browse a directory and return its contents. */
 app.post('/api/browse', async (req, res) => {
   try {
     const { dirPath } = req.body;
@@ -651,118 +658,156 @@ app.get('/api/drives', async (req, res) => {
 /**
  * Scan a directory for audio files
  */
+async function scanMediaPaths(inputPaths, recursive) {
+  const resolvedInputs = inputPaths.map((inputPath) => path.resolve(inputPath));
+  const mm = await getMusicMetadata();
+  const audioFiles = [];
+  const nonAudioFiles = [];
+  const skippedExtensions = {};
+  const visitedFiles = new Set();
+  let totalFilesScanned = 0;
+  let primaryPath = null;
+
+  async function scanFile(filePath) {
+    const resolvedFile = path.resolve(filePath);
+    const fileKey = resolvedFile.toLowerCase();
+    if (visitedFiles.has(fileKey)) return;
+    visitedFiles.add(fileKey);
+
+    let stat;
+    try {
+      stat = await fsp.stat(resolvedFile);
+    } catch {
+      return;
+    }
+    if (!stat.isFile()) return;
+
+    totalFilesScanned++;
+    const name = path.basename(resolvedFile);
+    const ext = path.extname(name).toLowerCase();
+    const isAudio = AUDIO_EXTENSIONS.has(ext);
+    const isMedia = NON_AUDIO_MEDIA_EXTENSIONS.has(ext);
+
+    if (isAudio) {
+      try {
+        const metadata = await mm.parseFile(resolvedFile, { skipCovers: false });
+        const cover = metadata.common.picture && metadata.common.picture[0];
+        audioFiles.push({
+          path: resolvedFile,
+          name,
+          ext,
+          size: stat.size,
+          title: metadata.common.title || name,
+          artist: metadata.common.artist || 'Unknown',
+          albumartist: metadata.common.albumartist || 'Unknown',
+          album: metadata.common.album || 'Unknown',
+          hasCover: !!cover,
+          coverMime: cover ? cover.format : null,
+          writable: COVER_WRITABLE_EXTENSIONS.has(ext) || METADATA_WRITABLE_EXTENSIONS.has(ext),
+          coverWritable: COVER_WRITABLE_EXTENSIONS.has(ext),
+          metadataWritable: METADATA_WRITABLE_EXTENSIONS.has(ext),
+        });
+      } catch {
+        audioFiles.push({
+          path: resolvedFile,
+          name,
+          ext,
+          size: stat.size,
+          title: name,
+          artist: 'Unknown',
+          albumartist: 'Unknown',
+          album: 'Unknown',
+          hasCover: false,
+          coverMime: null,
+          writable: false,
+          coverWritable: false,
+          metadataWritable: false,
+          error: 'Could not read metadata',
+        });
+      }
+    }
+
+    if (isAudio || isMedia) {
+      nonAudioFiles.push({
+        path: resolvedFile,
+        name,
+        ext: ext || '(no ext)',
+        size: stat.size,
+        isMedia,
+      });
+    }
+
+    if (!isAudio) {
+      const key = ext || '(no extension)';
+      skippedExtensions[key] = (skippedExtensions[key] || 0) + 1;
+    }
+  }
+
+  async function scanDir(dir) {
+    let entries;
+    try {
+      entries = await fsp.readdir(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+
+    for (const entry of entries) {
+      const fullPath = path.join(dir, entry.name);
+      if (entry.isDirectory() && recursive) {
+        if (!entry.name.startsWith('.') && !HIDDEN_BROWSER_DIRECTORIES.has(entry.name.toLowerCase())) {
+          await scanDir(fullPath);
+        }
+      } else if (entry.isFile()) {
+        await scanFile(fullPath);
+      }
+    }
+  }
+
+  for (const resolvedInput of resolvedInputs) {
+    let stat;
+    try {
+      stat = await fsp.stat(resolvedInput);
+    } catch {
+      continue;
+    }
+    if (!primaryPath) primaryPath = stat.isDirectory() ? resolvedInput : path.dirname(resolvedInput);
+    if (stat.isDirectory()) await scanDir(resolvedInput);
+    else if (stat.isFile()) await scanFile(resolvedInput);
+  }
+
+  if (!primaryPath) throw new Error('None of the dropped paths could be opened');
+
+  return {
+    path: primaryPath,
+    totalFilesScanned,
+    totalAudioFiles: audioFiles.length,
+    totalNonAudioFiles: nonAudioFiles.length,
+    skippedFiles: totalFilesScanned - audioFiles.length,
+    skippedExtensions,
+    files: audioFiles,
+    nonAudioFiles,
+  };
+}
+
 app.post('/api/scan', async (req, res) => {
   try {
     const { dirPath, recursive } = req.body;
+    if (!dirPath) return res.json({ error: 'No path provided' });
+    res.json(await scanMediaPaths([dirPath], Boolean(recursive)));
+  } catch (err) {
+    res.json({ error: err.message });
+  }
+});
 
-    if (!dirPath) {
-      return res.json({ error: 'No path provided' });
+app.post('/api/scan-paths', async (req, res) => {
+  try {
+    const { paths, recursive } = req.body;
+    if (!Array.isArray(paths) || paths.length === 0) return res.json({ error: 'No files or folders were dropped' });
+    if (paths.length > 500) return res.json({ error: 'Drop up to 500 files or folders at a time' });
+    if (paths.some((inputPath) => typeof inputPath !== 'string' || inputPath.trim() === '')) {
+      return res.json({ error: 'One or more dropped paths are invalid' });
     }
-
-    const resolvedPath = path.resolve(dirPath);
-    const mm = await getMusicMetadata();
-
-    const audioFiles = [];
-    const nonAudioFiles = [];
-    let totalFilesScanned = 0;
-    const skippedExtensions = {};  // Track which non-audio extensions were found
-
-    async function scanDir(dir) {
-      let entries;
-      try {
-        entries = await fsp.readdir(dir, { withFileTypes: true });
-      } catch {
-        return; // Skip inaccessible directories
-      }
-
-      for (const entry of entries) {
-        const fullPath = path.join(dir, entry.name);
-        if (entry.isDirectory() && recursive) {
-          await scanDir(fullPath);
-        } else if (entry.isFile()) {
-          totalFilesScanned++;
-          const ext = path.extname(entry.name).toLowerCase();
-          const isAudio = AUDIO_EXTENSIONS.has(ext);
-          const isMedia = NON_AUDIO_MEDIA_EXTENSIONS.has(ext);
-
-          if (isAudio) {
-            try {
-              const metadata = await mm.parseFile(fullPath, { skipCovers: false });
-              const cover = metadata.common.picture && metadata.common.picture[0];
-              const stat = await fsp.stat(fullPath);
-
-              audioFiles.push({
-                path: fullPath,
-                name: entry.name,
-                ext: ext,
-                size: stat.size,
-                title: metadata.common.title || entry.name,
-                artist: metadata.common.artist || 'Unknown',
-                albumartist: metadata.common.albumartist || 'Unknown',
-                album: metadata.common.album || 'Unknown',
-                hasCover: !!cover,
-                coverMime: cover ? cover.format : null,
-                writable: COVER_WRITABLE_EXTENSIONS.has(ext) || METADATA_WRITABLE_EXTENSIONS.has(ext),
-                coverWritable: COVER_WRITABLE_EXTENSIONS.has(ext),
-                metadataWritable: METADATA_WRITABLE_EXTENSIONS.has(ext),
-              });
-            } catch (parseErr) {
-              audioFiles.push({
-                path: fullPath,
-                name: entry.name,
-                ext: ext,
-                size: 0,
-                title: entry.name,
-                artist: 'Unknown',
-                album: 'Unknown',
-                hasCover: false,
-                coverMime: null,
-                writable: false,
-                coverWritable: false,
-                metadataWritable: false,
-                error: 'Could not read metadata'
-              });
-            }
-          }
-
-          // If not audio OR if it's a video/media container, collect in nonAudioFiles for conversion option
-          if (isAudio || isMedia) {
-            let fileSize = 0;
-            try {
-              const stat = await fsp.stat(fullPath);
-              fileSize = stat.size;
-            } catch {}
-
-            nonAudioFiles.push({
-              path: fullPath,
-              name: entry.name,
-              ext: ext || '(no ext)',
-              size: fileSize,
-              isMedia: isMedia
-            });
-          }
-
-          if (!isAudio) {
-            // Track skipped extensions
-            const key = ext || '(no extension)';
-            skippedExtensions[key] = (skippedExtensions[key] || 0) + 1;
-          }
-        }
-      }
-    }
-
-    await scanDir(resolvedPath);
-
-    res.json({
-      path: resolvedPath,
-      totalFilesScanned,
-      totalAudioFiles: audioFiles.length,
-      totalNonAudioFiles: nonAudioFiles.length,
-      skippedFiles: totalFilesScanned - audioFiles.length,
-      skippedExtensions,
-      files: audioFiles,
-      nonAudioFiles
-    });
+    res.json(await scanMediaPaths(paths, Boolean(recursive)));
   } catch (err) {
     res.json({ error: err.message });
   }

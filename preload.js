@@ -1,4 +1,4 @@
-const { contextBridge, ipcRenderer } = require('electron');
+const { contextBridge, ipcRenderer, webUtils } = require('electron');
 
 contextBridge.exposeInMainWorld('coverSwapUpdates', {
   getStatus: () => ipcRenderer.invoke('updates:get-status'),
@@ -10,4 +10,8 @@ contextBridge.exposeInMainWorld('coverSwapUpdates', {
   check: () => ipcRenderer.send('updates:check'),
   install: () => ipcRenderer.send('updates:install'),
   openRelease: () => ipcRenderer.send('updates:open-release'),
+});
+
+contextBridge.exposeInMainWorld('coverSwapDesktop', {
+  getPathForFile: (file) => webUtils.getPathForFile(file),
 });
